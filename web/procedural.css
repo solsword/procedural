@@ -1,0 +1,58 @@
+.procedural_widget {
+  border: 1pt solid #ccddff;
+  border-radius: 8pt;
+  padding: 8pt;
+  margin: 6pt;
+  font-size: larger;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.procedural_widget .code_bucket {
+  border: 1pt solid #aaaaaa;
+  border-radius: 6pt;
+  padding: 6pt;
+  margin: 5pt;
+  background-color: #eeeeee;
+}
+
+.procedural_widget .code_bucket .bucket_title {
+  font-size: larger;
+  font-weight: bold;
+  font-family: sans-serif;
+}
+
+.procedural_widget .code_line {
+  border: 1pt solid #113388;
+  border-radius: 4pt;
+  padding: 4pt;
+  margin: 3pt;
+  font-family: monospace;
+  background-color: #ccddff;
+  color: #113388;
+  cursor: move;
+}
+
+.procedural_widget .code_line.hovered {
+  border-width: 2pt;
+  padding: 3pt;
+  box-sizing: border-box;
+  background-color: #aaccff;
+}
+
+.procedural_widget .code_slot {
+  border: 1pt solid #4488cc;
+  border-radius: 4pt;
+  padding: 4pt;
+  margin: 3pt;
+  font-family: monospace;
+  background-color: #ddeeff;
+  color: #113388;
+  box-sizing: border-box;
+}
+
+.procedural_widget .code_slot.hovered {
+  border-width: 2pt;
+  padding: 3pt;
+  background-color: #ccddff;
+}
