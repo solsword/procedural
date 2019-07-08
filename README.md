@@ -8,3 +8,5 @@ create puzzles in several genres.
 
 Puzzles are defined as a solution (working code) plus optionally some
 distractors (extra lines of code that aren't necessary).
+
+(all of that is of course currently aspirational...)
