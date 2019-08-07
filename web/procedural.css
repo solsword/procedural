@@ -22,37 +22,45 @@
   font-family: sans-serif;
 }
 
-.procedural_widget .code_line {
-  border: 1pt solid #113388;
+.procedural_widget .code_block, .procedural_widget .code_slot {
+  border: 1pt solid red; /* color will be changed */
   border-radius: 4pt;
   padding: 4pt;
   margin: 3pt;
   font-family: monospace;
-  background-color: #ccddff;
+  white-space: pre;
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+
+.procedural_widget .code_block {
+  border-color: #113388;
+  background-color: white; /*#ccddff;*/
   color: #113388;
   cursor: move;
 }
 
-.procedural_widget .code_line.hovered {
-  border-width: 2pt;
-  padding: 3pt;
-  box-sizing: border-box;
+.procedural_widget .code_slot {
+  border-color: #4488cc;
+  background-color: #ddeeff;
+  color: #113388;
+  height: 16pt;
+}
+
+.procedural_widget .code_block.hovered {
   background-color: #aaccff;
 }
 
-.procedural_widget .code_slot {
-  border: 1pt solid #4488cc;
-  border-radius: 4pt;
-  padding: 4pt;
-  margin: 3pt;
-  font-family: monospace;
-  background-color: #ddeeff;
-  color: #113388;
-  box-sizing: border-box;
+.procedural_widget .code_slot.hovered {
+  background-color: #ccddff;
 }
 
-.procedural_widget .code_slot.hovered {
+.procedural_widget .code_block.hovered, .procedural_widget .code_slot.hovered {
   border-width: 2pt;
   padding: 3pt;
-  background-color: #ccddff;
+  margin-bottom: 12pt; /* demonstrate where element would go */
+}
+
+.procedural_widget .code_block.error {
+  border-color: #880000;
 }

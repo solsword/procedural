@@ -4,15 +4,19 @@
  * Parson's puzzles widget.
  */
 
+//---------------//
+// Drag handlers //
+//---------------//
+
 // global reference to DOM element being dragged
 var DRAGGED = undefined;
 
-// Collection of event handlers for dragging & dropping code lines
+// Collection of event handlers for dragging & dropping code blocks
 var DRAGHANDLERS = {
   "start": function (ev) {
     if (
       ev.target.classList == undefined
-   || !ev.target.classList.contains("code_line")
+   || !ev.target.classList.contains("code_block")
     ) {
       ev.preventDefault();
       return;
@@ -32,7 +36,7 @@ var DRAGHANDLERS = {
     if (!same_widget(ev.target, DRAGGED)) { return; }
     if (
       ev.target.classList.contains("code_slot")
-   || ev.target.classList.contains("code_line")
+   || ev.target.classList.contains("code_block")
     ) {
       ev.dataTransfer.dropEffect = 'move';
       ev.target.classList.add("hovered");
@@ -42,7 +46,7 @@ var DRAGHANDLERS = {
     if (!same_widget(ev.target, DRAGGED)) { return; }
     if (
       ev.target.classList.contains("code_slot")
-   || ev.target.classList.contains("code_line")
+   || ev.target.classList.contains("code_block")
     ) {
       ev.dataTransfer.dropEffect = 'none';
       ev.target.classList.remove("hovered");
@@ -58,37 +62,41 @@ var DRAGHANDLERS = {
       // drop on a slot: create a slot where we came from and replace the slot
       // that we landed on
       let slot = ev.target;
-      let line = DRAGGED;
+      let block = DRAGGED;
       let newslot = create_slot();
-      line.parentNode.insertBefore(newslot, line);
-      line.parentNode.removeChild(line);
-      slot.parentNode.insertBefore(line, slot);
+      block.parentNode.insertBefore(newslot, block);
+      block.parentNode.removeChild(block);
+      slot.parentNode.insertBefore(block, slot);
       slot.parentNode.removeChild(slot);
-    } else if (ev.target.classList.contains("code_line")) {
-      // drop on a code line: swap places with it
+    } else if (ev.target.classList.contains("code_block")) {
+      // drop on a code block: swap places with it
       let hit = ev.target;
-      let line = DRAGGED;
+      let block = DRAGGED;
       let hit_parent = hit.parentNode;
-      let line_parent = line.parentNode;
-      let line_next = line.nextSibling;
-      // If we're swapping with the line after us, we need to insert that line
+      let block_parent = block.parentNode;
+      let block_next = block.nextSibling;
+      // If we're swapping with the block after us, we need to insert that block
       // before ourselves.
-      if (line_next == hit) {
-        line_next = line;
+      if (block_next == hit) {
+        block_next = block;
       }
-      line_parent.removeChild(line);
-      hit_parent.insertBefore(line, hit);
+      block_parent.removeChild(block);
+      hit_parent.insertBefore(block, hit);
       hit_parent.removeChild(hit);
-      if (line_next != null) {
-        line_parent.insertBefore(hit, line_next);
+      if (block_next != null) {
+        block_parent.insertBefore(hit, block_next);
       } else {
-        line_parent.appendChild(hit);
+        block_parent.appendChild(hit);
       }
-      line.classList.remove("hovered");
+      block.classList.remove("hovered");
       hit.classList.remove("hovered");
     }
   },
 };
+
+//--------------------------//
+// DOM Management Functions //
+//--------------------------//
 
 function create_slot() {
   /*
@@ -100,14 +108,164 @@ function create_slot() {
   return slot;
 }
 
+function add_code_block_to_bucket(bucket, block) {
+  /*
+   * Adds a block of code to a code block bucket. Creates the requisite DOM
+   * element and translates from raw code to HTML specifics. The given bucket
+   * element should be a DOM element with the code_bucket class.
+   */
+  let codeblock = document.createElement("div");
+  codeblock.classList.add("code_block");
+  codeblock.innerHTML = block.replace(
+    /	/g,
+    '&nbsp;&nbsp;&nbsp;&nbsp;'
+  );
+  codeblock.draggable = "true";
+  codeblock.__code__ = block;
+  bucket.appendChild(codeblock);
+}
+
+function add_empty_slot_to_bucket(bucket) {
+  /*
+   * Adds an empty slot to a code bucket (should be a DOM element with class
+   * code_bucket).
+   */
+  bucket.appendChild(create_slot());
+}
+
+function my_widget(node) {
+  /*
+   * Figure out which widget a DOM node belongs to. Recursively asks parent DOM
+   * node until a node with __widget__ defined is found.
+   */
+  if (node.__widget__) {
+    return node.__widget__;
+  } else if (node.parentNode) {
+    return my_widget(node.parentNode);
+  } else {
+    return undefined;
+  }
+}
+
+function same_widget(a, b) {
+  /*
+   * Generic function for asking if two elements belong to the same widget or
+   * not. Just uses my_widget on each and compares results.
+   */
+  return my_widget(a) === my_widget(b);
+}
+
+//----------------------//
+// Evaluation Functions //
+//----------------------//
+
+function eval_block(block, env, language) {
+  /*
+   * Evaluates the given code block in the given environment, modifying that
+   * environment. It returns the modified environment (or a newly-constructed
+   * environment if no environment was given).
+   */
+  if (env == undefined) {
+    env = {}; // create a new object
+  }
+  if (language == undefined) {
+    langauge = "javascript";
+  }
+
+  if (language == "javascript") {
+    return eval_js(block, env);
+  } else if (language == "python") {
+    return eval_py(block, env);
+  }
+}
+
+function eval_js(block, env) {
+  /*
+   * Evaluates a block of JavaScript code in the given environment, modifying
+   * it and returning the modified result.
+   */
+  env.console = {
+    "log": function() {
+      let msg = "";
+      for (let arg of arguments) {
+        msg += arg;
+      }
+      if (env.__messages__ == undefined) {
+        env.__messages__ = [];
+      }
+      env.__messages__.push(msg);
+    },
+    "warn": function() {
+      let msg = "";
+      for (let arg of arguments) {
+        msg += arg;
+      }
+      if (env.__warnings__ == undefined) {
+        env.__warnings__ = [];
+      }
+      env.__warnings__.push(msg);
+    },
+    "error": function() {
+      let msg = "";
+      for (let arg of arguments) {
+        msg += arg;
+      }
+      if (env.__errors__ == undefined) {
+        env.__errors__ = [];
+      }
+      env.__errors__.push(msg);
+    }
+  };
+  try {
+    // TODO: Proxy magic: https://stackoverflow.com/questions/2051678/getting-all-variables-in-scope
+    // TODO: or do we need ESPRIMA? https://esprima.org/index.html
+    function scope() {
+      console.error("JavaScript evaluation isn't implemented yet!");
+      //eval("'use strict'; " + block + "}");
+    }
+    scope()
+  } catch (e) {
+    if (env.__errors__ == undefined) {
+      env.__errors__ = [];
+    }
+    env.__errors__.push(e);
+  }
+  return env;
+}
+
+function eval_py(block, env) {
+  /*
+   * Evaluates a block of Python code in the given environment, modifying it
+   * and returning the modified result.
+   * TODO: Implement me using Brython!
+   */
+  //console.log($locals);
+  /*$locals = env;*/
+  console.log(block);
+  /*
+  let tree = __BRYTHON__.py2js(block, "__main__", "__main__");
+  //let tree = __BRYTHON__.py2js(block, "__main__");
+  let js = tree.to_js();
+  eval(js);
+  */
+  __BRYTHON__.run_script(block, "__main__");
+  console.log(angle, tea);
+  return $locals;
+  //console.error("Python evaluation isn't implemented yet!");
+}
+
+//-----------------//
+// Setup functions //
+//-----------------//
+
 function setup_widget(node, puzzle) {
   /*
    * Sets up a widget as a Parson's puzzle. First argument should be a DOM div
    * with class procedural_widget, and second should be a puzzle object with
    * the following keys:
    *
-   *   code: a string containing lines of code in solved order
-   *   extra (optional): distractor lines of code
+   *   code: a string containing blocks of code in solved order
+   *   extra (optional): distractor blocks of code
    *   language (optional): code language; defaults to JavaScript. Supported
    *     languages are:
    *     
@@ -151,16 +309,16 @@ function setup_widget(node, puzzle) {
 
 function setup_base_puzzle(node, code, extra) {
   /*
-   * Sets up a basic two-column puzzle where you drag lines from the left into
+   * Sets up a basic two-column puzzle where you drag blocks from the left into
    * numbered slots on the right.
    */
   let w = {}; // the widget object
   node.__widget__ = w; // attach it to the DOM
 
-  // Split code + extras into lines, or make up stuff if it wasn't provided
-  let code_lines;
+  // Split code + extras into blocks, or make up stuff if it wasn't provided
+  let code_blocks;
   if (code == undefined) {
-    code_lines = [
+    code_blocks = [
       "a = 3;",
       "b = 4;",
       "c = a*b;",
@@ -169,13 +327,13 @@ function setup_base_puzzle(node, code, extra) {
       "c = c + a;"
     ];
   } else {
-    code_lines = code.split('\n');
+    code_blocks = code.split('\n');
   }
-  // Filter out blank lines:
-  w.code_lines = [];
-  for (let line of code_lines) {
-    if (line.replace(/\s/g, '').length > 0) {
-      w.code_lines.push(line);
+  // Filter out blank blocks:
+  w.code_blocks = [];
+  for (let block of code_blocks) {
+    if (block.replace(/\s/g, '').length > 0) {
+      w.code_blocks.push(block);
     }
   }
   let distractors;
@@ -184,16 +342,16 @@ function setup_base_puzzle(node, code, extra) {
   } else {
     distractors = extra.split('\n');
   }
-  // Filter out blank lines:
+  // Filter out blank blocks:
   w.distractors = [];
-  for (let line of distractors) {
-    if (line.replace(/\s/g, '').length > 0) {
-      w.distractors.push(line);
+  for (let block of distractors) {
+    if (block.replace(/\s/g, '').length > 0) {
+      w.distractors.push(block);
     }
   }
-  w.all_lines = w.code_lines.concat(w.distractors);
+  w.all_blocks = w.code_blocks.concat(w.distractors);
 
-  // bucket for source lines
+  // bucket for source blocks
   w.source_bucket = document.createElement("div");
   w.source_bucket.classList.add("code_bucket");
   w.source_bucket.classList.add("code_source");
@@ -201,12 +359,12 @@ function setup_base_puzzle(node, code, extra) {
 
   // TODO: Scramble!
 
-  // Add each code line to our source div:
-  for (let i = 0; i < w.all_lines.length; ++i) {
-    add_code_line_to_bucket(w.source_bucket, w.all_lines[i]);
+  // Add each code block to our source div:
+  for (let i = 0; i < w.all_blocks.length; ++i) {
+    add_code_block_to_bucket(w.source_bucket, w.all_blocks[i]);
   }
 
-  // bucket for solution lines
+  // bucket for solution blocks
   w.soln_bucket = document.createElement("div");
   w.soln_bucket.classList.add("code_bucket");
   w.soln_bucket.classList.add("soln_list");
@@ -214,56 +372,32 @@ function setup_base_puzzle(node, code, extra) {
 
   // TODO: variable/unspecified # of answer slots?
   // Create the exact right number of slots:
-  for (let i = 0; i < w.code_lines.length; ++i) {
+  for (let i = 0; i < w.code_blocks.length; ++i) {
     add_empty_slot_to_bucket(w.soln_bucket);
   }
-}
 
-function add_code_line_to_bucket(bucket, line) {
-  /*
-   * Adds a line of code to a code line bucket. Creates the requisite DOM
-   * element and translates from raw code to HTML specifics. The given bucket
-   * element should be a DOM element with the code_bucket class.
-   */
-  let codeline = document.createElement("div");
-  codeline.classList.add("code_line");
-  codeline.innerHTML = line.replace(
-    /	/g,
-    '&nbsp;&nbsp;&nbsp;&nbsp;'
+  let eb = document.createElement("input");
+  eb.type = "button";
+  eb.value = "evaluate";
+  eb.__bucket__ = w.soln_bucket;
+  eb.addEventListener(
+    "click",
+    function () {
+      let bucket = eb.__bucket__;
+      let code = "";
+      for (let child of bucket.children) {
+        if (child.hasOwnProperty("__code__")) {
+          code += child.__code__ + '\n';
+        }
+      }
+      console.log(code);
+      let env = eval_block(code, undefined, "python");
+      alert("" + env);
+    }
   );
-  codeline.draggable = "true";
-  bucket.appendChild(codeline);
+  w.soln_bucket.appendChild(eb);
 }
 
-function add_empty_slot_to_bucket(bucket) {
-  /*
-   * Adds an empty slot to a code bucket (should be a DOM element with class
-   * code_bucket).
-   */
-  bucket.appendChild(create_slot());
-}
-
-function my_widget(node) {
-  /*
-   * Figure out which widget a DOM node belongs to. Recursively asks parent DOM
-   * node until a node with __widget__ defined is found.
-   */
-  if (node.__widget__) {
-    return node.__widget__;
-  } else if (node.parentNode) {
-    return my_widget(node.parentNode);
-  } else {
-    return undefined;
-  }
-}
-
-function same_widget(a, b) {
-  /*
-   * Generic function for asking if two elements belong to the same widget or
-   * not. Just uses my_widget on each and compares results.
-   */
-  return my_widget(a) === my_widget(b);
-}
 
 function sequence_puzzles(widget, puzzles) {
   /*
@@ -346,4 +480,4 @@ function init() {
 }
 
 // Init when document loads:
-window.addEventListener("load", function () { init(); });
+window.addEventListener("load", function () { brython(); init(); });

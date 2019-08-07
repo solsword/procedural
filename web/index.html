@@ -5,12 +5,14 @@
     <meta charset="utf-8"/>
     <meta name="author" content="Peter Mawhorter"/>
     <link rel="stylesheet" href="procedural.css"/>
+    <script type="text/javascript" src="brython/brython.js"></script>
+    <script type="text/javascript" src="brython/brython_stdlib.js"></script>
   </head>
-  <body>
-    <div class="procedural_widget">
-      <script type="text/javascript" src="procedural.js"></script>
-    </div>
-    <div class="procedural_widget" data-puzzle='{ "code": "a = 1\nb = a\na = 3\nc = b + 4" }'>
-    </div>
+  <body onload="brython(1);">
+    <!--script type="text/javascript" src="procedural.js"></script-->
+    <script type="text/python" src="procedural.py"></script>
+    <div class="procedural_widget" data-puzzle-source="puzzles.json"></div>
+    <div class="procedural_widget"></div>
+    <div class="procedural_widget" data-puzzle='{ "code": "a = 1\nb = a\na = 3\nc = b + 4", "tests": [ "a == 3", "b == 1", "c == 5" ] }'></div>
   </body>
 </html>
