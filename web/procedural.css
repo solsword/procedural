@@ -3,17 +3,38 @@
   border-radius: 8pt;
   padding: 8pt;
   margin: 6pt;
-  font-size: larger;
+  font-size: 14pt;
   display: grid;
   grid-template-columns: 1fr 1fr;
+}
+
+.procedural_widget pre {
+  white-space: pre;
+}
+
+.procedural_widget pre.syntax-error-description {
+  background-color: white;
+  border-radius: 4pt;
+  padding: 4pt;
+}
+
+/* specific enough to beat Prism styles */
+.procedural_widget pre.syntax-error-description code {
+  font-size: 14pt;
+  font-family: "Consolas", monospace;
+  color: black;
+	text-shadow: 0 1px rgba(128, 128, 128, 0.3);
+  font-weight: normal;
 }
 
 .procedural_widget .code_bucket {
   border: 1pt solid #aaaaaa;
   border-radius: 6pt;
   padding: 6pt;
+  padding-bottom: 26pt; /* always room to drop at bottom */
   margin: 5pt;
   background-color: #eeeeee;
+  position: relative; /* becomes an anchor for relative positioning inside */
 }
 
 .procedural_widget .code_bucket .bucket_title {
@@ -22,15 +43,26 @@
   font-family: sans-serif;
 }
 
+
+.procedural_widget .code_bucket .eval-button {
+  /* position at bottom-right always */
+  font-size: 16pt;
+  position: absolute;
+  bottom: 6pt;
+  right: 6pt;
+}
+
 .procedural_widget .code_block, .procedural_widget .code_slot {
   border: 1pt solid red; /* color will be changed */
   border-radius: 4pt;
   padding: 4pt;
   margin: 3pt;
+  display: block;
   font-family: monospace;
   white-space: pre;
   overflow-x: auto;
   box-sizing: border-box;
+  position: relative; /* becomes an anchor for relative positioning inside */
 }
 
 .procedural_widget .code_block {
@@ -47,6 +79,7 @@
   height: 16pt;
 }
 
+/*
 .procedural_widget .code_block.hovered {
   background-color: #aaccff;
 }
@@ -54,13 +87,115 @@
 .procedural_widget .code_slot.hovered {
   background-color: #ccddff;
 }
+*/
+
+.procedural_widget .code_block.dragging {
+  opacity: 0.6;
+}
 
 .procedural_widget .code_block.hovered, .procedural_widget .code_slot.hovered {
-  border-width: 2pt;
-  padding: 3pt;
-  margin-bottom: 12pt; /* demonstrate where element would go */
+  border-width: 1.5pt;
+  padding: 3.5pt;
+  /* Note: setting a top-margin to indicate drop area would be nice, but causes
+   * quite noticeable slowdown due to dithering */
 }
 
-.procedural_widget .code_block.error {
-  border-color: #880000;
+/* TODO: apply arrows to all lines of code that will move? */
+
+/* arrow icons to indicate where drop will happen: */
+.procedural_widget .code_block.hovered:before, .procedural_widget .code_slot.hovered:before {
+  content: "↓  ";
+  font-family: monospace;
 }
+
+.procedural_widget .dragging + .hovered:before {
+  content: "↑  ";
+  font-family: monospace;
+}
+
+.procedural_widget .code_block .error {
+  border: 1pt solid #800;
+  border-radius: 4pt;
+  background-color: #fbb;
+  color: #800;
+  font-weight: bold;
+  padding: 4pt;
+}
+
+.procedural_widget .code_block .error.stale {
+  border-color: #880;
+  background-color: #ffb;
+  color: #880;
+}
+
+
+.procedural_widget .code_block {
+  color: black;
+	text-shadow: 0 1px rgba(128, 128, 128, 0.3);
+}
+
+/*
+:root {
+  --bl: #46a;
+  --gy: #999;
+  --rd: #a00;
+  --br: #840;
+  --pu: #70a;
+  --pk: #a07;
+  --gr: #3a0;
+}
+
+.procedural_widget .code_block .token.number { color: var(--bl); }
+.procedural_widget .code_block .token.boolean { color: var(--bl); }
+
+.procedural_widget .code_block .token.operator { color: var(--gr); }
+.procedural_widget .code_block .token.boolop { color: var(--gr); }
+
+.procedural_widget .code_block .token.punctuation { color: var(--gy); }
+
+.procedural_widget .code_block .token.string { color: var(--rd); }
+.procedural_widget .code_block .token.triple-quoted-string { color: var(--rd); }
+.procedural_widget .code_block .token.string-interpolation { color: var(--rd); }
+
+.procedural_widget .code_block .token.function { color: var(--pu); }
+.procedural_widget .code_block .token.class-name { color: var(--pu); }
+
+.procedural_widget .code_block .token.decorator { color: var(--pk); }
+
+.procedural_widget .code_block .token.keyword { color: var(--gr); }
+.procedural_widget .code_block .token.builtin { color: var(--gr); }
+*/
+
+/* These match Canopy: */
+:root {
+  --bk: rgb(0, 0, 0);
+  --gy: rgb(102, 102, 102);
+  --dkgy: rgb(80, 80, 80);
+  --bl: rgb(0, 0, 255);
+  --dkbl: rgb(17, 34, 140);
+  --gr: rgb(0, 128, 0);
+  --rd: rgb(186, 33, 33);
+  --pu: rgb(170, 34, 255);
+}
+
+/* Two differences: we make numbers dark blue instead of gray, and we make
+ * punctuation slightly gray instead of the same black as variables */
+.procedural_widget .code_block .token.number { color: var(--dkbl); }
+
+.procedural_widget .code_block .token.punctuation { color: var(--dkgy); }
+
+.procedural_widget .code_block .token.operator { color: var(--gy); }
+
+.procedural_widget .code_block .token.string { color: var(--rd); }
+.procedural_widget .code_block .token.triple-quoted-string { color: var(--rd); }
+.procedural_widget .code_block .token.string-interpolation { color: var(--rd); }
+
+.procedural_widget .code_block .token.function { color: var(--bl); }
+.procedural_widget .code_block .token.class-name { color: var(--bl); }
+
+.procedural_widget .code_block .token.decorator { color: var(--pu); }
+.procedural_widget .code_block .token.boolop { color: var(--pu); }
+
+.procedural_widget .code_block .token.keyword { color: var(--gr); }
+.procedural_widget .code_block .token.builtin { color: var(--gr); }
+.procedural_widget .code_block .token.boolean { color: var(--gr); }
