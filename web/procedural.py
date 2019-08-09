@@ -173,8 +173,10 @@ def drag_drop(ev):
     # now clean up classes:
     remove_class(slot, "hovered")
 
-    # Mark errors on this widget as stale:
-    mark_errors_as_stale(my_widget(ev.target))
+    # Mark errors and tests on this widget as stale:
+    w = my_widget(ev.target)
+    mark_errors_as_stale(w)
+    mark_tests_as_stale(w)
 
   elif has_class(ev.target, "code_bucket"):
     # drop on a bucket: add ourselves after the last code block in that bucket:
@@ -190,7 +192,9 @@ def drag_drop(ev):
       ev.target.insertBefore(DRAGGED, last.nextSibling)
 
     # Mark errors on this widget as stale:
-    mark_errors_as_stale(my_widget(ev.target))
+    w = my_widget(ev.target)
+    mark_errors_as_stale(w)
+    mark_tests_as_stale(w)
 
   else:
     ev.preventDefault()
@@ -225,7 +229,7 @@ def add_code_block_to_bucket(bucket, code):
   add_class(codeblock, "language-python")
   codeblock.draggable = True
   codeblock.__code__ = code
-  codeblock.innerHTML = code
+  codeblock.innerText = code
   browser.window.Prism.highlightElement(codeblock)
   bucket.appendChild(codeblock)
 
@@ -284,6 +288,287 @@ def exec_code(code, env=None):
 
   return env
 
+def eval_button_handler(ev):
+  """
+  Click handler for the evaluate button of a puzzle. Evaluates the code, runs
+  the tests, and reports results by updating test statuses and attaching error
+  messages.
+  """
+  # TODO: activity indicator
+  bucket = ev.target.__bucket__
+  widget = my_widget(bucket)
+  remove_errors(widget)
+  mark_tests_as_fresh(widget)
+  code = ""
+  for child in bucket.children:
+    if child.hasOwnProperty("__code__"):
+      code += child.__code__ + '\n'
+  code = code[:-1] # remove trailing newline
+  log("Running code:\n---\n{}\n---".format(code))
+  exception = None
+  try:
+    env = exec_code(code)
+  except Exception as e:
+    exception = traceback.TracebackException(*sys.exc_info())
+    log("Result was an exception:\n" + ''.join(exception.format()))
+    attach_error_message(bucket, exception)
+    env = ({}, {})
+
+  # Now run the pre-test code
+  pte = None
+  if exception == None and "pretest" in widget["puzzle"]:
+    try:
+      env = exec_code(widget["puzzle"]["pretest"], env)
+    except Exception as e:
+      # An exception here is neither recoverable nor reportable. Be careful
+      # with your pre-test code.
+      pte = traceback.TracebackException(*sys.exc_info())
+      error("Exception in pre-test code:\n" + ''.join(pte.format()))
+
+  # Now run tests and report results:
+  test_results = run_tests(widget, env)
+  report_test_results(widget, test_results, exception, pte)
+
+def attach_error_message(bucket, tbe):
+  """
+  Given a code bucket (that was just evaluated) and a TracebackException object
+  (which resulted from that evaluation), this method generates an error DOM
+  node and attaches it to the relevant code block in the given bucket.
+  """
+  block, line = block_and_line_responsible_for(bucket, tbe)
+  attach_error_message_at_line(block, line, tbe)
+
+def attach_error_mesage_to_test(tnode, tbe):
+  """
+  Works like attach_error_message, but attaches the message to a test node
+  instead of a code block. Use for errors in evaluation of test nodes.
+  """
+  attach_error_message_at_line(tnode, line_of(tbe), tbe)
+
+def attach_error_message_at_line(code_elem, line, tbe):
+  """
+  Attaches an error message to the given code element indicating that the given
+  error occurred on the given line (inside the element).
+  """
+  exc_msg = ':'.join(list(tbe.format())[-1].split(':')[1:]).strip()
+  err = document.createElement("details")
+  add_class(err, "error")
+  err.innerHTML = exc_msg
+  errname = document.createElement("summary")
+  errname.innerHTML = tbe.exc_type.__name__
+  err.appendChild(errname)
+  if tbe.exc_type == SyntaxError:
+    err.appendChild(
+      document.createTextNode(
+        "\nThe error was detected at this point:"
+      )
+    )
+    errdesc = document.createElement("pre")
+    add_class(errdesc, "syntax-error-description")
+    errcode = document.createElement("code")
+    add_class(errcode, "language-python")
+    errcode.innerHTML = tbe.text
+    browser.window.Prism.highlightElement(errcode) # highlight just the code
+    errdesc.appendChild(errcode)
+    # add the caret and message after the code
+    caret_text = '\n' + list(tbe.format())[-2]
+    #caret_text = '\n' + ('&nbsp;' * tbe.offset) + '^'
+    caret = document.createTextNode(caret_text)
+    errdesc.appendChild(caret)
+    err.appendChild(errdesc)
+
+  elif '\n' in code_elem.__code__: # multi-line code so identify the line
+    err.appendChild(
+      document.createTextNode(
+        "\nThe error was detected on this line:"
+      )
+    )
+    err_line = code_elem.__code__.split('\n')[line]
+    errdesc = document.createElement("pre")
+    add_class(errdesc, "syntax-error-description")
+    errcode = document.createElement("code")
+    add_class(errcode, "language-python")
+    errcode.innerHTML = err_line
+    browser.window.Prism.highlightElement(errcode) # highlight just the code
+    errdesc.appendChild(errcode)
+    err.appendChild(errdesc)
+
+  code_elem.appendChild(err)
+
+def line_of(tbe):
+  """
+  Returns the raw line number of a TracebackException.
+  """
+  if tbe.exc_type == SyntaxError:
+    return int(tbe.lineno)
+  else:
+    return tbe.stack[-1].lineno
+
+def block_and_line_responsible_for(bucket, tbe):
+  """
+  Figures out which block of code in a bucket was responsible for the given
+  traceback by counting code lines and looking at the traceback's final line
+  number. Also returns the line number within that block, as the second part of
+  a tuple. Logs an error and returns None if the line number is out of range
+  for the code block.
+  """
+  line = line_of(tbe)
+  sofar = 0
+  last = None
+  lines = None
+  for child in bucket.children:
+    if child.hasOwnProperty("__code__"):
+      last = child
+      lines = len(child.__code__.split('\n'))
+      if sofar + lines >= line:
+        return (child, line - 1 - sofar)
+      else:
+        sofar += lines
+  if line == sofar + 1 and last != None:
+    # e.g., an indentation error on final added blank line
+    return (last, lines - 1)
+  error("Ran out of code lines trying to find responsible block!")
+  error(
+    "children: {}, lines: {}, target: {}".format(
+      len(bucket.children),
+      sofar,
+      line
+    )
+  )
+  return None
+
+def mark_errors_as_stale(widget):
+  """
+  Marks all errors in the given widget as stale (presumably because they're no
+  longer 100% valid as code has been moved around).
+  """
+  for node in widget["node"].querySelectorAll(".error"):
+    add_class(node, "stale")
+
+def remove_errors(widget):
+  """
+  Removes errors from the given widget (presumably in preparation for
+  re-executing the code and generating new errors).
+  """
+  for node in widget["node"].querySelectorAll(".error"):
+    node.parentNode.removeChild(node)
+
+def mark_tests_as_stale(widget):
+  """
+  Marks all tests in the given widget as stale.
+  """
+  for node in widget["node"].querySelectorAll(".test_block"):
+    add_class(node, "stale")
+
+def mark_tests_as_fresh(widget):
+  """
+  Removes the 'stale' class from all tests in the widget, along with the
+  'passed' and 'failed' classes.
+  """
+  for node in widget["node"].querySelectorAll(".test_block"):
+    remove_class(node, "stale", "passed", "failed")
+
+def run_tests(widget, env):
+  """
+  Given an environment resulting from running the current code arrangement plus
+  the pre-test code, this runs the tests for the widget and returns a list of
+  dictionaries (one per test in order) with the following keys:
+
+    "result": the result value
+    "exception": The exception thrown if any. Result will be None in this case.
+
+  Returns None if the widget doesn't have any tests. Note that the same
+  environment is used for all tests, so earlier tests are allowed to influence
+  later ones, although they probably shouldn't.
+  """
+  if "tests" not in widget["puzzle"]: # no tests, so just check for errors...
+    return None
+
+  tests = widget["puzzle"]["tests"]
+
+  results = []
+  for expr in tests:
+    try:
+      result = eval(expr, globals=env[0], locals=env[1])
+      results.append({"result": result, "exception": None})
+    except Exception as e:
+      tbe = traceback.TracebackException(*sys.exc_info())
+      results.append({"result": None, "exception": tbe})
+
+  return results
+
+def report_test_results(widget, results, error=None, pretest_error=None):
+  """
+  Reports test results by updating the status of individual test blocks and/or
+  attaching errors to them. If there was an error before testing could be
+  initiated (either an error value from execing the code or a pretest_error
+  value from attempting the pretest code) tests won't be updated and an error
+  indicator will be shown (attaching those errors to the DOM is not handled
+  here).
+  """
+  ind = widget["test_indicator"]
+  soln_blocks = list(widget["soln_bucket"].querySelectorAll(".code_block"))
+  solution = [block.__code__ for block in soln_blocks]
+  if has_class(ind, "boolean"):
+    # Widget has no tests; just report overall success/failure (results should
+    # be None).
+    if results != None:
+      error(
+        "Non-None results for widget with boolean indicator:\n{}".format(
+          results
+        )
+      )
+    if error != None:
+      ind.innerHTML = "Error running code."
+    elif pretest_error != None:
+      ind.innerHTML = "Error preparing tests. We could not check your solution, but it is probably not correct."
+    else: # No errors: puzzle solved (or empty)
+      if len(soln_blocks) > 0: # solution found!
+        ind.innerHTML = "Puzzle solved!"
+        mark_solved(widget, solution)
+      else: # empty bucket -> default message
+        ind.innerHTML = "Click 'check' to run the code... (drag some code to the right side first)"
+
+  else:
+    # Widget has tests, so report success/failure
+
+    passed = [
+      r
+        for r in results
+        if r["result"] == True and r["exception"] == None
+    ]
+    if error != None:
+      ind.innerHTML = "? / {} tests passed (error running code)".format(
+        len(results)
+      )
+    elif pretest_error != None:
+      ind.innerHTML = "? / {} tests passed (Error preparing tests. Your code itself does not have an error, but we could not set up for the tests, so your solution is probably not correct.)".format(len(results))
+    else:
+      ind.innerHTML = "{} / {} tests passed".format(len(passed), len(results))
+      if len(passed) == len(results):
+        mark_solved(widget, solution)
+        ind.innerHTML += " (puzzle solved!)"
+      if "test_elements" in widget:
+        # report pass/fail for individual tests
+        for i, r in enumerate(results):
+          tnode = widget["test_elements"][i]
+          if r["result"] == True and r["exception"] == None:
+            add_class(tnode, "passed")
+          else:
+            add_class(tnode, "failed")
+            if r["exception"] != None:
+              attach_error_mesage_to_test(tnode, r["exception"])
+
+def mark_solved(widget, solution):
+  """
+  Marks a widget as solved and remembers the solution as the last-discovered
+  solution.
+  """
+  widget["solved"] = True
+  widget["last_solution"] = solution
+  add_class(widget["node"], "solved")
+  # TODO: report solution more directly?
+
 #-----------------#
 # Setup functions #
 #-----------------#
@@ -297,17 +582,18 @@ def setup_widget(node, puzzle=None):
       A list of strings, each of which will be made into a draggable code
       block. If a single string is given instead, it will be split up into
       lines and each line will become a block (empty lines will be removed).
-    tests:
+    tests (optional):
       A list of strings, each of which must be a single expression that will
       evaluate to True after executing the puzzle code if the puzzle has been
-      solved.
+      solved. If there are no tests, the puzzle will count as solved as long as
+      running the code does not generate an error.
       TODO
     pretest (optional):
       A string of code to be executed before testing blocks.
       TODO
-    goal (optional):
+    instructions (optional):
       An HTML string to be displayed to the user that describes the goal of the
-      puzzle.
+      puzzle. Default instructions are displayed if none are given.
       TODO
     show_tests (optional; default True):
       True or False, whether the tests should be displayed to the user or not.
@@ -350,134 +636,6 @@ def blocks_from_lines(code):
     )
   )
 
-
-def eval_button_handler(ev):
-  """
-  Click handler for the evaluate button of a puzzle.
-  """
-  # TODO: activity indicator
-  bucket = ev.target.__bucket__
-  remove_errors(my_widget(bucket))
-  code = ""
-  for child in bucket.children:
-    if child.hasOwnProperty("__code__"):
-      code += child.__code__ + '\n'
-  code = code[:-1] # remove trailing newline
-  log("Running code:\n---\n{}\n---".format(code))
-  try:
-    env = exec_code(code)
-  # TODO: handle syntax errors separately?
-  #except SyntaxError as se:
-  except Exception as e:
-    tbe = traceback.TracebackException(*sys.exc_info())
-    log("Result was an exception:\n" + ''.join(tbe.format()))
-    attach_error_mesage(bucket, tbe)
-
-def attach_error_mesage(bucket, tbe):
-  """
-  Given a code bucket (that was just evaluated) and a TracebackException object
-  (which resulted from that evaluation), this method generates an error DOM
-  node and attaches it to the relevant code block in the given bucket.
-  """
-  block, line = block_and_line_responsible_for(bucket, tbe)
-  exc_msg = ':'.join(list(tbe.format())[-1].split(':')[1:]).strip()
-
-  err = document.createElement("details")
-  add_class(err, "error")
-  err.innerHTML = exc_msg
-  errname = document.createElement("summary")
-  errname.innerHTML = tbe.exc_type.__name__
-  err.appendChild(errname)
-  if tbe.exc_type == SyntaxError:
-    err.appendChild(
-      document.createTextNode(
-        "\nThe error was detected at this point:"
-      )
-    )
-    errdesc = document.createElement("pre")
-    add_class(errdesc, "syntax-error-description")
-    errcode = document.createElement("code")
-    add_class(errcode, "language-python")
-    errcode.innerHTML = tbe.text
-    browser.window.Prism.highlightElement(errcode) # highlight just the code
-    errdesc.appendChild(errcode)
-    # add the caret and message after the code
-    caret_text = '\n' + list(tbe.format())[-2]
-    #caret_text = '\n' + ('&nbsp;' * tbe.offset) + '^'
-    caret = document.createTextNode(caret_text)
-    errdesc.appendChild(caret)
-    err.appendChild(errdesc)
-
-  elif '\n' in block.__code__: # multi-line code so identify the line
-    err.appendChild(
-      document.createTextNode(
-        "\nThe error was detected on this line:"
-      )
-    )
-    err_line = block.__code__.split('\n')[line]
-    errdesc = document.createElement("pre")
-    add_class(errdesc, "syntax-error-description")
-    errcode = document.createElement("code")
-    add_class(errcode, "language-python")
-    errcode.innerHTML = err_line
-    browser.window.Prism.highlightElement(errcode) # highlight just the code
-    errdesc.appendChild(errcode)
-    err.appendChild(errdesc)
-
-  block.appendChild(err)
-
-def block_and_line_responsible_for(bucket, tbe):
-  """
-  Figures out which block of code in a bucket was responsible for the given
-  traceback by counting code lines and looking at the traceback's final line
-  number. Also returns the line number within that block, as the second part of
-  a tuple. Logs an error and returns None if the line number is out of range
-  for the code block.
-  """
-  if tbe.exc_type == SyntaxError:
-    line = int(tbe.lineno)
-  else:
-    line = tbe.stack[-1].lineno
-  sofar = 0
-  last = None
-  lines = None
-  for child in bucket.children:
-    if child.hasOwnProperty("__code__"):
-      last = child
-      lines = len(child.__code__.split('\n'))
-      if sofar + lines >= line:
-        return (child, line - 1 - sofar)
-      else:
-        sofar += lines
-  if line == sofar + 1 and last != None:
-    # e.g., an indentation error on final added blank line
-    return (last, lines - 1)
-  error("Ran out of code lines trying to find responsible block!")
-  error(
-    "children: {}, lines: {}, target: {}".format(
-      len(bucket.children),
-      sofar,
-      line
-    )
-  )
-  return None
-
-def mark_errors_as_stale(widget):
-  """
-  Marks all errors in the given widget as stale (presumably because they're no
-  longer 100% valid as code has been moved around).
-  """
-  for node in widget["node"].querySelectorAll(".error"):
-    add_class(node, "stale")
-
-def remove_errors(widget):
-  """
-  Removes errors from the given widget (presumably in preparation for
-  re-executing the code and generating new errors).
-  """
-  for node in widget["node"].querySelectorAll(".error"):
-    node.parentNode.removeChild(node)
-
 def setup_base_puzzle(node, puzzle):
   """
   Sets up a basic two-column puzzle where you drag blocks from the left into
@@ -495,9 +653,17 @@ def setup_base_puzzle(node, puzzle):
       ],
       "pretest": "",
       "tests": [ "a == 8", "b == 9", "c == 20" ],
-      "goal": "Rearrange the code so that all of the tests are satisfied.",
       "show_tests": True
     }
+    # (default instructions will be added below)
+
+  # Add default instructions if they're missing:
+  if "instructions" not in puzzle:
+    puzzle["instructions"] = """
+Drag the code on the left into the box on the right and arrange it so that the
+test expressions below are all satisfied.
+    """
+
   w = {
     "puzzle": puzzle,
     "node": node
@@ -509,6 +675,12 @@ def setup_base_puzzle(node, puzzle):
     code_blocks = blocks_from_lines(code_blocks)
 
   w["code_blocks"] = code_blocks
+
+  # instructions div
+  w["instructions"] = document.createElement("div")
+  add_class(w["instructions"], "instructions")
+  w["instructions"].innerHTML = puzzle["instructions"]
+  node.appendChild(w["instructions"])
 
   # bucket for source blocks
   w["source_bucket"] = document.createElement("div")
@@ -539,6 +711,42 @@ def setup_base_puzzle(node, puzzle):
   eb.addEventListener("click", eval_button_handler)
   w["soln_bucket"].appendChild(eb)
 
+  # tests div
+  w["test_div"] = document.createElement("div")
+  add_class(w["test_div"], "tests")
+
+  if "tests" in puzzle:
+    # We've got tests but they need to be hidden
+    w["test_indicator"] = document.createElement("div")
+    add_class(w["test_indicator"], "test_indicator")
+    w["test_indicator"].innerHTML = "? / {} tests passed".format(
+      len(puzzle["tests"])
+    )
+    w["test_div"].appendChild(w["test_indicator"])
+    if "show_tests" in puzzle and puzzle["show_tests"]:
+      # We've got tests and they should be displayed:
+      w["test_elements"] = []
+      for test in puzzle["tests"]:
+        tnode = document.createElement("code")
+        w["test_elements"].append(tnode) # same order as tests
+        add_class(tnode, "test_block")
+        add_class(tnode, "language-python")
+        w["test_div"].appendChild(tnode)
+        tnode.innerText = test
+        tnode.__code__ = test
+        # TODO: named tests with hidden code?
+        browser.window.Prism.highlightElement(tnode)
+    else: # Add note about hidden tests
+      note = document.createTextNode("(tests are secret)")
+      w["test_div"].appendChild(note)
+  else: # solution = any error-free non-empty arrangement
+    w["test_indicator"] = document.createElement("div")
+    add_class(w["test_indicator"], "test_indicator", "boolean")
+    w["test_indicator"].innerHTML = "Click 'check' to run the code..."
+    w["test_div"].appendChild(w["test_indicator"])
+
+  # Add tests block to widget node:
+  node.appendChild(w["test_div"])
 
 def sequence_puzzles(widget, puzzles):
   """

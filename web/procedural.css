@@ -1,11 +1,18 @@
 .procedural_widget {
+  width: calc(100% - 12pt);
+  box-sizing: border-box;
   border: 1pt solid #ccddff;
   border-radius: 8pt;
   padding: 8pt;
   margin: 6pt;
   font-size: 14pt;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 50% 50%;
+}
+
+.procedural_widget.solved {
+  border-color: #006688;
+  background-color: #ddeeff;
 }
 
 .procedural_widget pre {
@@ -25,6 +32,11 @@
   color: black;
 	text-shadow: 0 1px rgba(128, 128, 128, 0.3);
   font-weight: normal;
+}
+
+/* Instructions and tests take the full width */
+.procedural_widget .instructions, .procedural_widget .tests {
+  grid-column: 1 / 3;
 }
 
 .procedural_widget .code_bucket {
@@ -52,7 +64,9 @@
   right: 6pt;
 }
 
-.procedural_widget .code_block, .procedural_widget .code_slot {
+.procedural_widget .code_block,
+.procedural_widget .test_block,
+.procedural_widget .code_slot {
   border: 1pt solid red; /* color will be changed */
   border-radius: 4pt;
   padding: 4pt;
@@ -62,20 +76,47 @@
   white-space: pre;
   overflow-x: auto;
   box-sizing: border-box;
+  color: black;
+  background-color: white;
+	text-shadow: 0 1px rgba(128, 128, 128, 0.3);
   position: relative; /* becomes an anchor for relative positioning inside */
 }
 
 .procedural_widget .code_block {
   border-color: #113388;
-  background-color: white; /*#ccddff;*/
-  color: #113388;
   cursor: move;
+}
+
+.procedural_widget .test_block {
+  border-color: #888888;
+  background-color: #e4e4e4;
+  border-width: 1.5pt;
+  display: inline-block;
+}
+
+.procedural_widget .test_block.failed {
+  border-color: #880000;
+  background-color: #ffe4e4;
+}
+
+.procedural_widget .test_block.passed {
+  border-color: #006688;
+  background-color: #ddeeff;
+}
+
+.procedural_widget .test_block.failed.stale {
+  border-color: #888800;
+  background-color: #ffffe4;
+}
+
+.procedural_widget .test_block.passed.stale {
+  border-color: #aabbdd;
+  background-color: #f4f8ff;
 }
 
 .procedural_widget .code_slot {
   border-color: #4488cc;
   background-color: #ddeeff;
-  color: #113388;
   height: 16pt;
 }
 
@@ -113,7 +154,7 @@
   font-family: monospace;
 }
 
-.procedural_widget .code_block .error {
+.procedural_widget .error {
   border: 1pt solid #800;
   border-radius: 4pt;
   background-color: #fbb;
@@ -122,16 +163,10 @@
   padding: 4pt;
 }
 
-.procedural_widget .code_block .error.stale {
+.procedural_widget .error.stale {
   border-color: #880;
   background-color: #ffb;
   color: #880;
-}
-
-
-.procedural_widget .code_block {
-  color: black;
-	text-shadow: 0 1px rgba(128, 128, 128, 0.3);
 }
 
 /*
@@ -180,22 +215,22 @@
 
 /* Two differences: we make numbers dark blue instead of gray, and we make
  * punctuation slightly gray instead of the same black as variables */
-.procedural_widget .code_block .token.number { color: var(--dkbl); }
+.procedural_widget .token.number { color: var(--dkbl); }
 
-.procedural_widget .code_block .token.punctuation { color: var(--dkgy); }
+.procedural_widget .token.punctuation { color: var(--dkgy); }
 
-.procedural_widget .code_block .token.operator { color: var(--gy); }
+.procedural_widget .token.operator { color: var(--gy); }
 
-.procedural_widget .code_block .token.string { color: var(--rd); }
-.procedural_widget .code_block .token.triple-quoted-string { color: var(--rd); }
-.procedural_widget .code_block .token.string-interpolation { color: var(--rd); }
+.procedural_widget .token.string { color: var(--rd); }
+.procedural_widget .token.triple-quoted-string { color: var(--rd); }
+.procedural_widget .token.string-interpolation { color: var(--rd); }
 
-.procedural_widget .code_block .token.function { color: var(--bl); }
-.procedural_widget .code_block .token.class-name { color: var(--bl); }
+.procedural_widget .token.function { color: var(--bl); }
+.procedural_widget .token.class-name { color: var(--bl); }
 
-.procedural_widget .code_block .token.decorator { color: var(--pu); }
-.procedural_widget .code_block .token.boolop { color: var(--pu); }
+.procedural_widget .token.decorator { color: var(--pu); }
+.procedural_widget .token.boolop { color: var(--pu); }
 
-.procedural_widget .code_block .token.keyword { color: var(--gr); }
-.procedural_widget .code_block .token.builtin { color: var(--gr); }
-.procedural_widget .code_block .token.boolean { color: var(--gr); }
+.procedural_widget .token.keyword { color: var(--gr); }
+.procedural_widget .token.builtin { color: var(--gr); }
+.procedural_widget .token.boolean { color: var(--gr); }

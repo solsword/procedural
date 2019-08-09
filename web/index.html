@@ -15,7 +15,7 @@
     <script type="text/python" src="procedural.py"></script>
     <div class="procedural_widget" data-puzzle-source="puzzles.json"></div>
     <div class="procedural_widget"></div>
-    <div class="procedural_widget" data-puzzle='{ "code": [ "@decorator\ndef function(x, y, z):", "    indented = 4\n    print(x, y + z)", "    string = \"one two three\"\n    return True or None" ], "tests": [ "a == 3", "b == 1", "c == 5" ] }'></div>
+    <div class="procedural_widget" data-puzzle='{ "code": [ "@decorator\ndef function(x, y, z):", "    indented = 4\n    print(x, y + z)", "    string = \"one two three\"\n    return True or None", "    \"This is a long line of code that will hopefully demonstrate any wrapping issues that might occur\"", "#-------------------------------------------------------------------------------" ], "tests": [ "a == 3", "b == 1", "c == 5" ] }'></div>
     <div class="procedural_widget" data-puzzle='{ "code": "@decorator\ndef function(x, y, z):\n    indented = 4\n    print(x, y + z)\n    string = \"one two three\"\n    return True or None", "tests": [ "a == 3", "b == 1", "c == 5" ] }'></div>
     <div class="procedural_widget" data-puzzle='{ "code": "a = 1\nb = a\na = 3\nc = b + 4", "tests": [ "a == 3", "b == 1", "c == 5" ] }'></div>
   </body>
