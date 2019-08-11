@@ -14,6 +14,7 @@ import traceback
 import browser
 from browser import document, window
 import browser.ajax
+import javascript
 
 #-------------#
 # Scaffolding #
@@ -56,6 +57,44 @@ def remove_class(elt, *classes):
   """
   for cl in classes:
     elt.classList.remove(cl)
+
+def trap_exception(ex):
+  """
+  Preserves an exception as a list of exception type, string message,
+  integer line number, and for syntax errors, integer error position offset
+  (other errors have None as their offset).
+  """
+  if isinstance(ex, SyntaxError):
+    if type(ex) == SyntaxError:
+      true_offset = len(traceback.format_exception_only(type(ex), ex)[-2]) - 2
+    else:
+      true_offset = ex.offset
+    return [type(ex), ex.msg, ex.lineno, true_offset]
+  else:
+    if not hasattr(ex, "__traceback__"):
+      tb = sys.exc_info()[2]
+    else:
+      tb = ex.__traceback__
+    return [type(ex), str(ex), line_of(tb), None]
+
+def format_error(error):
+  """
+  Formats a trapped exception from trap_exception. Returns a string.
+  """
+  error_type, error_msg, error_line, error_offset = error
+  return "{}: {} (on line {})".format(
+    error_type.__name__,
+    error_msg,
+    error_line
+  )
+
+def line_of(tb):
+  """
+  Returns the raw line number of the last frame of a traceback.
+  """
+  while (tb.tb_next != None):
+    tb = tb.tb_next
+  return tb.tb_lineno
 
 #---------------#
 # Drag handlers #
@@ -229,7 +268,9 @@ def add_code_block_to_bucket(bucket, code):
   add_class(codeblock, "language-python")
   codeblock.draggable = True
   codeblock.__code__ = code
-  codeblock.innerText = code
+  codeblock.innerHTML = code
+  # Note: this must be innerHTML, not innerText! (otherwise line breaks get
+  # eaten)
   browser.window.Prism.highlightElement(codeblock)
   bucket.appendChild(codeblock)
 
@@ -281,6 +322,7 @@ def exec_code(code, env=None):
   tuple), modifying that environment. It returns the modified environment (or a
   newly-constructed environment if no environment was given).
   """
+  # TODO: Why are exceptions horribly slow? Can we fix this?
   if env == None:
     env = ({}, {}) # create a new object
 
@@ -309,8 +351,8 @@ def eval_button_handler(ev):
   try:
     env = exec_code(code)
   except Exception as e:
-    exception = traceback.TracebackException(*sys.exc_info())
-    log("Result was an exception:\n" + ''.join(exception.format()))
+    exception = trap_exception(e)
+    log("Result was an exception:\n" + ''.join(format_error(exception)))
     attach_error_message(bucket, exception)
     env = ({}, {})
 
@@ -322,42 +364,48 @@ def eval_button_handler(ev):
     except Exception as e:
       # An exception here is neither recoverable nor reportable. Be careful
       # with your pre-test code.
-      pte = traceback.TracebackException(*sys.exc_info())
-      error("Exception in pre-test code:\n" + ''.join(pte.format()))
+      pte = trap_exception(e)
+      error("Exception in pre-test code:\n" + ''.join(format_error(pte)))
 
   # Now run tests and report results:
   test_results = run_tests(widget, env)
   report_test_results(widget, test_results, exception, pte)
 
-def attach_error_message(bucket, tbe):
+def attach_error_message(bucket, error):
   """
   Given a code bucket (that was just evaluated) and a TracebackException object
   (which resulted from that evaluation), this method generates an error DOM
   node and attaches it to the relevant code block in the given bucket.
   """
-  block, line = block_and_line_responsible_for(bucket, tbe)
-  attach_error_message_at_line(block, line, tbe)
+  block, line = block_and_line_responsible_for(bucket, error)
+  attach_error_message_at_line(block, line, error)
 
-def attach_error_mesage_to_test(tnode, tbe):
+def attach_error_mesage_to_code(node, error):
   """
-  Works like attach_error_message, but attaches the message to a test node
-  instead of a code block. Use for errors in evaluation of test nodes.
+  Works like attach_error_message, but attaches the message to an arbitrary
+  code block. The error's line number should already be relative to that code
+  block.
   """
-  attach_error_message_at_line(tnode, line_of(tbe), tbe)
+  attach_error_message_at_line(node, error[2], error)
 
-def attach_error_message_at_line(code_elem, line, tbe):
+def attach_error_message_at_line(code_elem, line, error):
   """
   Attaches an error message to the given code element indicating that the given
   error occurred on the given line (inside the element).
   """
-  exc_msg = ':'.join(list(tbe.format())[-1].split(':')[1:]).strip()
+  error_type, error_msg, error_line, error_offset = error
+  exc_msg = "{}: {}".format(error_type.__name__, error_msg)
   err = document.createElement("details")
   add_class(err, "error")
   err.innerHTML = exc_msg
   errname = document.createElement("summary")
-  errname.innerHTML = tbe.exc_type.__name__
+  errname.innerText = error_type.__name__
   err.appendChild(errname)
-  if tbe.exc_type == SyntaxError:
+  if not hasattr(code_elem, "__code__"):
+    error(
+      "Target element doesn't have a __code__ attribute:\n{}".format(code_elem)
+    )
+  if issubclass(error_type, SyntaxError):
     err.appendChild(
       document.createTextNode(
         "\nThe error was detected at this point:"
@@ -367,13 +415,14 @@ def attach_error_message_at_line(code_elem, line, tbe):
     add_class(errdesc, "syntax-error-description")
     errcode = document.createElement("code")
     add_class(errcode, "language-python")
-    errcode.innerHTML = tbe.text
+    errcode.innerHTML = code_elem.__code__.split('\n')[line]
     browser.window.Prism.highlightElement(errcode) # highlight just the code
     errdesc.appendChild(errcode)
     # add the caret and message after the code
-    caret_text = '\n' + list(tbe.format())[-2]
-    #caret_text = '\n' + ('&nbsp;' * tbe.offset) + '^'
-    caret = document.createTextNode(caret_text)
+    log("EO:", error_offset)
+    caret_text = '<br/>' + ('&nbsp;' * error_offset) + '^'
+    caret = document.createElement("span")
+    caret.innerHTML = caret_text
     errdesc.appendChild(caret)
     err.appendChild(errdesc)
 
@@ -388,23 +437,14 @@ def attach_error_message_at_line(code_elem, line, tbe):
     add_class(errdesc, "syntax-error-description")
     errcode = document.createElement("code")
     add_class(errcode, "language-python")
-    errcode.innerHTML = err_line
+    errcode.innerText = err_line
     browser.window.Prism.highlightElement(errcode) # highlight just the code
     errdesc.appendChild(errcode)
     err.appendChild(errdesc)
 
   code_elem.appendChild(err)
 
-def line_of(tbe):
-  """
-  Returns the raw line number of a TracebackException.
-  """
-  if tbe.exc_type == SyntaxError:
-    return int(tbe.lineno)
-  else:
-    return tbe.stack[-1].lineno
-
-def block_and_line_responsible_for(bucket, tbe):
+def block_and_line_responsible_for(bucket, error):
   """
   Figures out which block of code in a bucket was responsible for the given
   traceback by counting code lines and looking at the traceback's final line
@@ -412,7 +452,7 @@ def block_and_line_responsible_for(bucket, tbe):
   a tuple. Logs an error and returns None if the line number is out of range
   for the code block.
   """
-  line = line_of(tbe)
+  error_type, error_msg, error_line, error_offset = error
   sofar = 0
   last = None
   lines = None
@@ -420,11 +460,11 @@ def block_and_line_responsible_for(bucket, tbe):
     if child.hasOwnProperty("__code__"):
       last = child
       lines = len(child.__code__.split('\n'))
-      if sofar + lines >= line:
-        return (child, line - 1 - sofar)
+      if sofar + lines >= error_line:
+        return (child, error_line - 1 - sofar)
       else:
         sofar += lines
-  if line == sofar + 1 and last != None:
+  if error_line == sofar + 1 and last != None:
     # e.g., an indentation error on final added blank line
     return (last, lines - 1)
   error("Ran out of code lines trying to find responsible block!")
@@ -432,7 +472,7 @@ def block_and_line_responsible_for(bucket, tbe):
     "children: {}, lines: {}, target: {}".format(
       len(bucket.children),
       sofar,
-      line
+      error_line
     )
   )
   return None
@@ -457,7 +497,7 @@ def mark_tests_as_stale(widget):
   """
   Marks all tests in the given widget as stale.
   """
-  for node in widget["node"].querySelectorAll(".test_block"):
+  for node in widget["node"].querySelectorAll(".test_feedback"):
     add_class(node, "stale")
 
 def mark_tests_as_fresh(widget):
@@ -465,7 +505,7 @@ def mark_tests_as_fresh(widget):
   Removes the 'stale' class from all tests in the widget, along with the
   'passed' and 'failed' classes.
   """
-  for node in widget["node"].querySelectorAll(".test_block"):
+  for node in widget["node"].querySelectorAll(".test_feedback"):
     remove_class(node, "stale", "passed", "failed")
 
 def run_tests(widget, env):
@@ -474,12 +514,21 @@ def run_tests(widget, env):
   the pre-test code, this runs the tests for the widget and returns a list of
   dictionaries (one per test in order) with the following keys:
 
-    "result": the result value
+    "result": The result value.
     "exception": The exception thrown if any. Result will be None in this case.
+    "expected": The evaluated expected value
+    "exp_exception": The exception thrown when evaluating the expected value,
+      if any. Expected will be None in this case.
+    "passed": Whether the test passed (True) or failed (False).
 
   Returns None if the widget doesn't have any tests. Note that the same
   environment is used for all tests, so earlier tests are allowed to influence
   later ones, although they probably shouldn't.
+
+  Because we use == to compare evaluated actual/expected values, for complex
+  data structures you may need to use th pre-test code to set __eq__ properties
+  on certain objects so that they can be compared properly. You could also use
+  this to make equality tests approximate instead of exact.
   """
   if "tests" not in widget["puzzle"]: # no tests, so just check for errors...
     return None
@@ -487,13 +536,69 @@ def run_tests(widget, env):
   tests = widget["puzzle"]["tests"]
 
   results = []
-  for expr in tests:
+  for test in tests:
+    test = full_test(test)
+    texpr = test["expression"]
+    if "expect_error" in test:
+      texpect = test["expect_error"]
+    else:
+      texpect = test["expected"]
+    tresult = {
+      "result": None,
+      "exception": None,
+      "expected": None,
+      "exp_exception": None,
+      "passed": False
+    }
+
     try:
-      result = eval(expr, globals=env[0], locals=env[1])
-      results.append({"result": result, "exception": None})
+      tresult["result"] = eval(texpr, globals=env[0], locals=env[1])
     except Exception as e:
-      tbe = traceback.TracebackException(*sys.exc_info())
-      results.append({"result": None, "exception": tbe})
+      tresult["exception"] = trap_exception(e)
+
+    try:
+      tresult["expected"] = eval(texpect, globals=env[0], locals=env[1])
+      if "expect_error" in test and test["expect_error"] != None:
+        if not isinstance(tresult["expected"], Exception):
+          error(
+            "Expected expression didn't result in an Exception object even "
+          + "though expect_error was not None!"
+          )
+        tresult["expected"] = trap_exception(tresult["expected"])
+    except Exception as e:
+      tresult["exp_exception"] = trap_exception(e)
+
+    # Can't pass the test if we weren't able to evaluate the expected
+    # expression:
+    if tresult["exp_exception"] != None:
+      tresult["passed"] = False
+    elif "expect_error" in test: # pass if the correct exception was generated
+      res = tresult["exception"]
+      exp = tresult["expected"]
+      if res == None and exp == None:
+        tresult["passed"] = True
+      elif res == None or exp == None:
+        tresult["passed"] = False
+      else:
+        tresult["passed"] = (
+          res.exc_type == exp.exc_type
+      and str(res) == str(exp)
+        )
+    else: # pass if the correct value was returned
+      if tresult["exception"] != None:
+        tresult["passed"] = False
+      else:
+        log(
+          "Testing...\n{} == {} ? {}".format(
+            repr(tresult["result"]),
+            repr(tresult["expected"]),
+            tresult["result"] == tresult["expected"]
+          )
+        )
+        tresult["passed"] = tresult["result"] == tresult["expected"]
+
+    # Record the result for this test and continue to the next
+    results.append(tresult)
 
   return results
 
@@ -510,8 +615,8 @@ def report_test_results(widget, results, error=None, pretest_error=None):
   soln_blocks = list(widget["soln_bucket"].querySelectorAll(".code_block"))
   solution = [block.__code__ for block in soln_blocks]
   if has_class(ind, "boolean"):
-    # Widget has no tests; just report overall success/failure (results should
-    # be None).
+    # Widget has no tests; success is an arrangement of all blocks that doesn't
+    # cause any errors.
     if results != None:
       error(
         "Non-None results for widget with boolean indicator:\n{}".format(
@@ -519,45 +624,119 @@ def report_test_results(widget, results, error=None, pretest_error=None):
         )
       )
     if error != None:
-      ind.innerHTML = "Error running code."
+      ind.innerText = "Error running code."
     elif pretest_error != None:
-      ind.innerHTML = "Error preparing tests. We could not check your solution, but it is probably not correct."
+      ind.innerText = (
+        "Error preparing tests. We could not check your solution, but it is "
+      + "probably not correct."
+      )
     else: # No errors: puzzle solved (or empty)
-      if len(soln_blocks) > 0: # solution found!
-        ind.innerHTML = "Puzzle solved!"
-        mark_solved(widget, solution)
+      src_blocks = list(
+        widget["source_bucket"].querySelectorAll(".code_block")
+      )
+      if len(soln_blocks) > 0: # possible solution
+        if len(src_blocks) == 0:
+          ind.innerText = "Puzzle solved!"
+          mark_solved(widget, solution)
+        else:
+          ind.innerText = "No errors so far; use all blocks to solve puzzle."
       else: # empty bucket -> default message
-        ind.innerHTML = "Click 'check' to run the code... (drag some code to the right side first)"
+        ind.innerText = (
+          "Click 'check' to run the code... (drag some code to the right side "
+        + "first)"
+        )
 
   else:
     # Widget has tests, so report success/failure
 
-    passed = [
-      r
-        for r in results
-        if r["result"] == True and r["exception"] == None
-    ]
+    passed = [r for r in results if r["passed"] == True]
     if error != None:
-      ind.innerHTML = "? / {} tests passed (error running code)".format(
+      ind.innerText = "? / {} tests passed (error running code)".format(
         len(results)
       )
     elif pretest_error != None:
-      ind.innerHTML = "? / {} tests passed (Error preparing tests. Your code itself does not have an error, but we could not set up for the tests, so your solution is probably not correct.)".format(len(results))
+      ind.innerText = (
+        "? / {} tests passed (Error preparing tests. Your code itself does "
+      + "not have an error, but we could not set up for the tests, so your "
+      + "solution is probably not correct.)"
+      ).format(len(results))
     else:
-      ind.innerHTML = "{} / {} tests passed".format(len(passed), len(results))
+      ind.innerText = "{} / {} tests passed".format(len(passed), len(results))
       if len(passed) == len(results):
         mark_solved(widget, solution)
-        ind.innerHTML += " (puzzle solved!)"
+        ind.innerText += " (puzzle solved!)"
       if "test_elements" in widget:
         # report pass/fail for individual tests
         for i, r in enumerate(results):
           tnode = widget["test_elements"][i]
-          if r["result"] == True and r["exception"] == None:
+          test = widget["puzzle"]["tests"][i]
+          tval = tnode.querySelector(".test_value")
+          texp = tnode.querySelector(".test_expected")
+
+          # Mark as passed/failed
+          log("Test #{}: {}".format(i, r))
+          if r["passed"]:
             add_class(tnode, "passed")
           else:
             add_class(tnode, "failed")
+
+          # Add result values and/or exceptions:
+          if "expect_error" in test: # we are expecting an exception
+            if test["expect_error"] == None: # we were expecting no exception
+              if r["exception"] != None:
+                tval.innerText = "<error>"
+                attach_error_mesage_to_code(tval, r["exception"])
+              else:
+                tval.innerText = r["<no error>"]
+
+              if r["exp_exception"] != None:
+                texp.innerText = "<no error>"
+                attach_error_mesage_to_code(texp, r["exp_exception"])
+              else:
+                texp.innerText = "<no error>"
+                if r["expected"] != None:
+                  attach_error_mesage_to_code(texp, r["expected"])
+
+            else: # we were expecting a specific exception
+
+              if r["exception"] != None:
+                tval.innerText = "<expected error>"
+                attach_error_mesage_to_code(tval, r["exception"])
+              else:
+                tval.innerText = r["result"]
+
+              if r["exp_exception"] != None:
+                texp.innerText = "<error trying to figure out expected error>"
+                attach_error_mesage_to_code(texp, r["exp_exception"])
+                error(
+                  "Exception trying to evaluate expected exception:\n{}".format(
+                    format_error(test["exp_exception"])
+                  )
+                )
+              else:
+                texp.innerText = "<specific error>"
+                if r["expected"] != None:
+                  attach_error_mesage_to_code(texp, r["expected"])
+                else:
+                  error(
+                    "Expected was None while expect_error was not:\n{}".format(
+                      test["expect_error"]
+                    )
+                  )
+                  texp.innerText = "<specific error (missing)>"
+
+          else: # We weren't expecting an exception:
             if r["exception"] != None:
-              attach_error_mesage_to_test(tnode, r["exception"])
+              tval.innerText = "<error>"
+              attach_error_mesage_to_code(tval, r["exception"])
+            else:
+              tval.innerText = r["result"]
+
+            if r["exp_exception"] != None:
+              texp.innerText = "<error trying to figure out expected value>"
+              attach_error_mesage_to_code(texp, r["exp_exception"])
+            else:
+              texp.innerText = str(r["expected"])
 
 def mark_solved(widget, solution):
   """
@@ -583,21 +762,37 @@ def setup_widget(node, puzzle=None):
       block. If a single string is given instead, it will be split up into
       lines and each line will become a block (empty lines will be removed).
     tests (optional):
-      A list of strings, each of which must be a single expression that will
-      evaluate to True after executing the puzzle code if the puzzle has been
-      solved. If there are no tests, the puzzle will count as solved as long as
-      running the code does not generate an error.
-      TODO
+      A list of test dictionaries, which determine whether the puzzle is solved
+      or not. If no tests are given, any non-empty code that doesn't generate
+      an error will count as a solution. Each test must have the following
+      keys:
+
+        label: A string that describes what is tested
+        expression: The expression to evaluate as a code string
+        expected: The correct value of the expression, also as a string to be
+          evaluated.
+        expect_error: A code string that evaluates to an Exception object.
+          If this is present, 'expected' is ignored, and the test passes only
+          if it raises an equivalent exception (in terms of type and message).
+          This is optional. It may also be supplied as None, in which case the
+          test passes as long as no error is generated (and again "expected"
+          will be ignored). So expect_error being None is *not* the same as the
+          key being missing.
+        abstract: This key is optional; if the value is truthy, the test
+          expression and value won't be shown, but the label will be.
+        hidden: This key is optional; if the value is truthy, the test won't be
+          shown at all, but it will still be counted.
+
+      Instead of a test object with keys, a test may instead be specified using
+      a tuple, where the first element is a string expression to evaluate and
+      the second is the expected value. These tests will be given an automatic
+      label based on their expression.
+
     pretest (optional):
       A string of code to be executed before testing blocks.
-      TODO
     instructions (optional):
       An HTML string to be displayed to the user that describes the goal of the
       puzzle. Default instructions are displayed if none are given.
-      TODO
-    show_tests (optional; default True):
-      True or False, whether the tests should be displayed to the user or not.
-      TODO
   """
   # TODO: Use data- properties to define what kind of widget?
   if puzzle == None:
@@ -610,8 +805,7 @@ def setup_widget(node, puzzle=None):
             node.getAttribute("data-puzzle")
           )
         )
-        tbe = traceback.TracebackException(*sys.exc_info())
-        error(''.join(tbe.format()))
+        error(format_error(trap_exception(e)))
 
   setup_base_puzzle(node, puzzle) # accepts None puzzle and defaults
 
@@ -652,17 +846,27 @@ def setup_base_puzzle(node, puzzle):
         "c = c + a"
       ],
       "pretest": "",
-      "tests": [ "a == 8", "b == 9", "c == 20" ],
+      "tests": [
+        ['a', '8'], # note: both sides will be evaluated
+        ['b', '9'],
+        ['c', '20'],
+      ],
       "show_tests": True
     }
     # (default instructions will be added below)
 
   # Add default instructions if they're missing:
   if "instructions" not in puzzle:
-    puzzle["instructions"] = """
-Drag the code on the left into the box on the right and arrange it so that the
-test expressions below are all satisfied.
-    """
+    if "tests" in puzzle:
+      puzzle["instructions"] = (
+        "Drag the code on the left into the box on the right and arrange it "
+      + "so that all of the tests pass."
+      )
+    else:
+      puzzle["instructions"] = (
+        "Drag the code on the left into the box on the right and arrange it "
+      + "so that there are no errors."
+      )
 
   w = {
     "puzzle": puzzle,
@@ -711,42 +915,139 @@ test expressions below are all satisfied.
   eb.addEventListener("click", eval_button_handler)
   w["soln_bucket"].appendChild(eb)
 
-  # tests div
-  w["test_div"] = document.createElement("div")
-  add_class(w["test_div"], "tests")
-
   if "tests" in puzzle:
+    # tests div
+    w["test_div"] = document.createElement("details")
+    add_class(w["test_div"], "tests")
+
     # We've got tests but they need to be hidden
-    w["test_indicator"] = document.createElement("div")
+    w["test_indicator"] = document.createElement("summary")
     add_class(w["test_indicator"], "test_indicator")
-    w["test_indicator"].innerHTML = "? / {} tests passed".format(
+    w["test_indicator"].innerText = "? / {} tests passed".format(
       len(puzzle["tests"])
     )
     w["test_div"].appendChild(w["test_indicator"])
-    if "show_tests" in puzzle and puzzle["show_tests"]:
-      # We've got tests and they should be displayed:
-      w["test_elements"] = []
-      for test in puzzle["tests"]:
-        tnode = document.createElement("code")
-        w["test_elements"].append(tnode) # same order as tests
-        add_class(tnode, "test_block")
-        add_class(tnode, "language-python")
-        w["test_div"].appendChild(tnode)
-        tnode.innerText = test
-        tnode.__code__ = test
-        # TODO: named tests with hidden code?
-        browser.window.Prism.highlightElement(tnode)
-    else: # Add note about hidden tests
-      note = document.createTextNode("(tests are secret)")
+    # Display tests:
+    w["test_elements"] = []
+    hidden_count = 0
+    for test in puzzle["tests"]:
+      test = full_test(test)
+      tnode = document.createElement("div")
+      add_class(tnode, "test_feedback")
+      if test.get("hidden"):
+        add_class(tnode, "hidden")
+        hidden_count += 1
+      if test.get("abstract"):
+        add_class(tnode, "abstract")
+
+      # Test status
+      tstatus = document.createElement("span")
+      add_class(tstatus, "test_status")
+      tstatus.innerText = "" # CSS :after fills this in
+      tnode.appendChild(tstatus)
+
+      # Label for the entire test
+      tlabel = document.createElement("span")
+      add_class(tlabel, "test_label")
+      tlabel.innerHTML = test["label"]
+      tnode.appendChild(tlabel)
+
+      # Test expression label
+      texpr_label = document.createElement("span")
+      add_class(texpr_label, "field_label")
+      texpr_label.innerText = "Expression:"
+      tnode.appendChild(texpr_label)
+
+      # Test expression
+      texpr = document.createElement("code")
+      w["test_elements"].append(tnode) # same order as tests
+      add_class(texpr, "test_expr", "test_code")
+      add_class(texpr, "language-python")
+      texpr.innerText = test["expression"]
+      texpr.__code__ = test["expression"]
+      browser.window.Prism.highlightElement(texpr)
+      tnode.appendChild(texpr)
+
+      # Value label
+      tval_label = document.createElement("span")
+      add_class(tval_label, "field_label")
+      tval_label.innerText = "Value:"
+      tnode.appendChild(tval_label)
+
+      # Value of the expression
+      tval = document.createElement("code")
+      add_class(tval, "test_value", "test_code")
+      tval.innerText = "?"
+      if "expect_error" in test:
+        tval.__code__ = test["expect_error"]
+      else:
+        tval.__code__ = test["expected"]
+      tnode.appendChild(tval)
+
+      # Expected label
+      texp_label = document.createElement("span")
+      add_class(texp_label, "field_label")
+      texp_label.innerText = "Expected:"
+      tnode.appendChild(texp_label)
+
+      # Expected value
+      texp = document.createElement("code")
+      add_class(texp, "test_expected", "test_code")
+      if "expect_error" in test:
+        texp.innerText = test["expect_error"]
+        texp.__code__ = test["expect_error"]
+        tnode.appendChild(texp)
+      else:
+        texp.innerText = test["expected"]
+        texp.__code__ = test["expected"]
+      tnode.appendChild(texp)
+
+      w["test_div"].appendChild(tnode)
+
+    # Add note about hidden tests
+    if hidden_count == len(puzzle["tests"]):
+      note = document.createTextNode("(all tests are secret)")
       w["test_div"].appendChild(note)
-  else: # solution = any error-free non-empty arrangement
-    w["test_indicator"] = document.createElement("div")
+    elif hidden_count > 0:
+      note = document.createTextNode(
+        "(plus {} secret tests)".format(hidden_count)
+      )
+      w["test_div"].appendChild(note)
+
+  else: # solution = error-free arrangement of all blocks
+    # tests div
+    w["test_div"] = document.createElement("div")
+    add_class(w["test_div"], "tests")
+
+    w["test_indicator"] = document.createElement("span")
     add_class(w["test_indicator"], "test_indicator", "boolean")
-    w["test_indicator"].innerHTML = "Click 'check' to run the code..."
+    w["test_indicator"].innerText = "Click 'check' to run the code..."
     w["test_div"].appendChild(w["test_indicator"])
 
   # Add tests block to widget node:
   node.appendChild(w["test_div"])
+
+def full_test(test):
+  """
+  Converts a potentially abbreviated test into a full test.
+  """
+  if isinstance(test, dict):
+    result = test
+  elif isinstance(test, javascript.JSObject):
+    result = test.to_dict()
+  elif isinstance(test, [list, tuple]):
+    result = {
+      "label": "Value of '{}'".format(test[0]),
+      "expression": test[0],
+      "expected": test[1]
+    }
+  else:
+    error("Invalid test type ({}):\n{}".format(type(test), test))
+    return test
+  for key in ["label", "expression", "expected"]:
+    if key not in result:
+      error("Full test without {}:\n{}".format(key, test))
+  return result
 
 def sequence_puzzles(widget, puzzles):
   """
@@ -769,9 +1070,6 @@ def load_puzzles(url, continuation):
   Note that with Chrome --allow-file-access-from-files will be necessary if not
   being hosted by a server.
   """
-  # TODO: this?!?
-  #xobj = browser.ajax.Ajax()
-  #xobj.overrideMimeType("application/json")
   base = window.location.href
   path = '/'.join(base.split('/')[:-1])
   dpath = path + "/" + url
@@ -784,8 +1082,7 @@ def load_puzzles(url, continuation):
         obj = browser.window.JSON.parse(req.text)
       except Exception as e:
         error("Malformed JSON from '{}':\n{}".format(dpath, req.text))
-        tbe = traceback.TracebackException(*sys.exc_info())
-        error(''.join(tbe.format()))
+        error(format_error(trap_exception(e)))
         return
       # Call our callback and we're done
       continuation(obj)
@@ -799,8 +1096,7 @@ def load_puzzles(url, continuation):
   except Exception as e:
     error("Failed to load puzzles from: '" + dpath + "'")
     error("(XMLHTTP request raised error)")
-    tbe = traceback.TracebackException(*sys.exc_info())
-    error(''.join(tbe.format()))
+    error(format_error(trap_exception(e)))
 
 def init():
   """

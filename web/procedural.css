@@ -43,7 +43,7 @@
   border: 1pt solid #aaaaaa;
   border-radius: 6pt;
   padding: 6pt;
-  padding-bottom: 26pt; /* always room to drop at bottom */
+  padding-bottom: 32pt; /* always room to drop at bottom */
   margin: 5pt;
   background-color: #eeeeee;
   position: relative; /* becomes an anchor for relative positioning inside */
@@ -65,7 +65,7 @@
 }
 
 .procedural_widget .code_block,
-.procedural_widget .test_block,
+.procedural_widget .test_code,
 .procedural_widget .code_slot {
   border: 1pt solid red; /* color will be changed */
   border-radius: 4pt;
@@ -87,31 +87,92 @@
   cursor: move;
 }
 
-.procedural_widget .test_block {
-  border-color: #888888;
-  background-color: #e4e4e4;
-  border-width: 1.5pt;
-  display: inline-block;
+.procedural_widget .test_code {
+  border-width: 0pt;
 }
 
-.procedural_widget .test_block.failed {
+.procedural_widget .test_feedback {
+  background-color: #e4e4e4;
+  border: 1.5pt solid #888888;
+  border-radius: 4pt;
+  padding: 4pt;
+  margin: 3pt;
+  display: grid;
+  grid-template-columns: 2em 1fr 1fr 1fr 1fr;
+}
+
+.procedural_widget .test_feedback .test_status {
+  grid-row: 1 / 3;
+  align-self: center;
+  justify-self: center;
+  width: 1em;
+  text-align: center;
+  border: 1pt solid black;
+  border-radius: 3pt;
+  padding: 3pt;
+  color: black;
+  background-color: white;
+}
+
+.procedural_widget .test_feedback .test_label {
+  grid-row: 1 / 3;
+  align-self: center;
+  justify-self: center;
+}
+.procedural_widget .test_feedback .test_label + .field_label { grid-column: 3; }
+.procedural_widget .test_feedback .test_expr + .field_label { grid-column: 4; }
+.procedural_widget .test_feedback .test_value + .field_label { grid-column: 5; }
+.procedural_widget .test_feedback .field_label { grid-row: 1; }
+.procedural_widget .test_feedback .test_expr { grid-column: 3; }
+.procedural_widget .test_feedback .test_value { grid-column: 4; }
+.procedural_widget .test_feedback .test_expected { grid-column: 5; }
+
+.procedural_widget .test_feedback.hidden {
+  display: none;
+}
+
+.procedural_widget .test_feedback.abstract .test_expr { display: none; }
+.procedural_widget .test_feedback.abstract .test_expected { display: none; }
+.procedural_widget .test_feedback.abstract .test_value { display: none; }
+
+.procedural_widget .test_feedback.failed {
   border-color: #880000;
   background-color: #ffe4e4;
 }
 
-.procedural_widget .test_block.passed {
+.procedural_widget .test_feedback.passed {
   border-color: #006688;
   background-color: #ddeeff;
 }
 
-.procedural_widget .test_block.failed.stale {
+.procedural_widget .test_feedback.failed.stale {
   border-color: #888800;
   background-color: #ffffe4;
 }
 
-.procedural_widget .test_block.passed.stale {
+.procedural_widget .test_feedback.passed.stale {
   border-color: #aabbdd;
   background-color: #f4f8ff;
+}
+
+
+.procedural_widget .test_feedback .test_status:after {
+  content: "?";
+}
+
+.procedural_widget .test_feedback.failed .test_status:after {
+  content: "✗";
+}
+.procedural_widget .test_feedback.passed .test_status:after {
+  content: "✓";
+}
+
+.procedural_widget .test_feedback.failed.stale .test_status:after {
+  content: "?";
+}
+
+.procedural_widget .test_feedback.passed.stale .test_status:after {
+  content: "?";
 }
 
 .procedural_widget .code_slot {
