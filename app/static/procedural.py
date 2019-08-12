@@ -1097,7 +1097,7 @@ def load_puzzles(url, continuation):
     error("(XMLHTTP request raised error)")
     error(format_error(trap_exception(e)))
 
-def init():
+def init_procedural_widgets():
   """
   Selects all procedural_widget divs and creates elements inside each one to
   play a Parson's puzzle.
@@ -1107,20 +1107,8 @@ def init():
   widgets = document.querySelectorAll(".procedural_widget")
 
   # Set up each widget automatically:
-  #for widget in widgets:
-  #  setup_widget(widget)
+  for widget in widgets:
+    setup_widget(widget)
 
-  # Sequence loaded puzzles into the first widget:
-  first = widgets[0]
-  load_puzzles(
-    "puzzles.json",
-    lambda puzzles: sequence_puzzles(first, puzzles)
-  )
-
-  # Testing: set up second and third widgets as default:
-  setup_widget(widgets[1])
-  setup_widget(widgets[2])
-  # TODO: implement data-puzzle-source and plural puzzles
-
-# Initialize when this script is run:
-init()
+# Call this when script is run:
+init_procedural_widgets()
