@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Procedural</title>
+    <meta charset="utf-8"/>
+    <meta name="author" content="Peter Mawhorter"/>
+    <link rel="stylesheet" href="/static/procedural.css"/>
+    <link rel="stylesheet" href="/static/lib/prism.css"/>
+    <script type="text/javascript" src="/static/brython/brython.js"></script>
+    <script type="text/javascript" src="/static/brython/brython_stdlib.js"></script>
+    <script type="text/javascript" src="/static/lib/prism.js" data-manual></script>
+  </head>
+  <body onload="brython(1);">
+    <script type="text/python" src="/static/procedural.py"></script>
+    You are logged in as: {{username}}
+    <div
+      class="procedural_widget"
+      data-puzzle-source="puzzles.json"
+      data-submit-soluions-to="/solved"
+    ></div>
+  </body>
+</html>

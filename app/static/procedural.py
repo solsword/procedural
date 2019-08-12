@@ -850,8 +850,7 @@ def setup_base_puzzle(node, puzzle):
         ['a', '8'], # note: both sides will be evaluated
         ['b', '9'],
         ['c', '20'],
-      ],
-      "show_tests": True
+      ]
     }
     # (default instructions will be added below)
 
