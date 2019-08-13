@@ -2,3 +2,4 @@ __pycache__
 secret
 cert.pem
 key.pem
+solutions.sqlite3

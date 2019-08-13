@@ -19,14 +19,14 @@
   white-space: pre;
 }
 
-.procedural_widget pre.syntax-error-description {
+.procedural_widget pre.error-description {
   background-color: white;
   border-radius: 4pt;
   padding: 4pt;
 }
 
 /* specific enough to beat Prism styles */
-.procedural_widget pre.syntax-error-description code {
+.procedural_widget pre.error-description code {
   font-size: 14pt;
   font-family: "Consolas", monospace;
   color: black;
@@ -222,6 +222,12 @@
   color: #800;
   font-weight: bold;
   padding: 4pt;
+}
+
+.procedural_widget .error.expected {
+  border-color: #088;
+  background-color: #bff;
+  color: #088;
 }
 
 .procedural_widget .error.stale {

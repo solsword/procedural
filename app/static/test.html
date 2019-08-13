@@ -13,7 +13,15 @@
   <body onload="brython(1);">
     <!--script type="text/javascript" src="procedural.js"></script-->
     <script type="text/python" src="procedural.py"></script>
-    <div class="procedural_widget" data-puzzle-source="puzzles.json"></div>
+    <h1>Default puzzle interface</h1>
+    <p>
+      Has selectors for groups and puzzles (doesn't yet remember puzzle status
+      of previously solved puzzles).
+    </p>
+    <div class="procedural_selector">
+      <div class="procedural_widget"></div>
+    </div>
+    <h1>Additional individual puzzles</h1>
     <div class="procedural_widget"></div>
     <div class="procedural_widget" data-puzzle='{ "code": [ "@str\ndef function(x, y, z):", "    indented = 4\n    print(x, y + z)", "    string = \"one two three\"\n    return True or None", "    \"This is a long line of code that will hopefully demonstrate any wrapping issues that might occur\"", "#----This comment is exactly 80 characters long.--------------------------------" ] }'></div>
     <div class="procedural_widget" data-puzzle='{ "code": "@str\ndef function(x, y, z):\n    indented = 4\n    print(x, y + z)\n    string = \"one two three\"\n    return True or None", "tests": [ ["a", "3"], ["b", "1"], ["c", "5"] ] }'></div>

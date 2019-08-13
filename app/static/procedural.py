@@ -6,7 +6,6 @@ Parson's puzzles widget, using Brython to work with Python code.
 
 # Built-in imports
 import re
-import random
 import sys
 import traceback
 
@@ -15,6 +14,144 @@ import browser
 from browser import document, window
 import browser.ajax
 import javascript
+
+#----------------#
+# Default Values #
+#----------------#
+
+DEFAULT_INSTRUCTIONS = (
+  "Drag the code on the left into the box on the right and arrange it so that "
++ "all of the tests pass."
+)
+
+DEFAULT_INSTRUCTIONS_NOTESTS = (
+  "Drag all of the code on the left into the box on the right and arrange it "
++ "so that there are no errors."
+)
+
+DEFAULT_PUZZLE = { # default puzzle:
+  "code": [
+    "c = a*b",
+    "b = a + 1",
+    "a += 5",
+    "b = 4",
+    "c = c + a"
+    "a = 3",
+  ],
+  "pretest": "",
+  "tests": [
+    ['a', '8'], # note: both sides will be evaluated
+    ['b', '9'],
+    ['c', '20'],
+  ]
+}
+
+DEFAULT_INFO = {
+  "title": "Default puzzles",
+  "puzzles": [
+    {
+      "id": "group1",
+      "name": "Group 1",
+      "items": [
+        {
+          "id": "coordinates",
+          "name": "Polar Coordinates",
+          "instructions": "Arrange the code so that it converts from polar to Cartesian coordinates.",
+          "code": [
+"y = r * math.sin(theta)",
+"r = 14",
+"x = r * math.cos(theta)",
+"import math",
+"theta = math.pi/6 # 30 degrees",
+          ],
+          "tests": [
+            {
+              "expression": "x",
+              "expected": "7 * 3**0.5",
+              "round": 6
+            },
+            {
+              "expression": "y",
+              "expected": "7",
+              "round": 6
+            }
+          ]
+        },
+        {
+          "id": "school_color",
+          "name": "School Color",
+          "instructions": "Arrange the code so that it asks for your school and then your color, and then recommends a random new school color. If the random color happens to be the same as the real school color, the response will be that the current color is perfect.",
+          "input": "Wellesley\nblue\nWellesley\nblue\nWellesley\nblue\n",
+          "preexec": "import random as __random\n__random.seed(17)",
+          "code": [
+"    response = (\n      color.title() + ' is the perfect color for '\n    + school + '!'\n    )",
+"  color = input(\"What is your school's primary color?\")",
+"  if color == alt_color:",
+"  school = input(\"What school do you go to?\")",
+"def better_color():\n  '''\n  Asks what school the user attends and\n  what its primary color is and\n  suggests a random better color.\n  '''",
+"  alt_color = random.choice(colors)",
+"  print(response)",
+"  response = (\n    'Instead of ' + color + ', '\n  + school + ' should use ' + alt_color\n  + ' as their school color.'\n  )",
+"import random",
+"  colors = [\n    'red', 'blue', 'purple',\n    'orange', 'yellow', 'green',\n    'pink',  'brown', 'gray'\n  ]",
+          ],
+          "tests": [
+{
+"label": "<code>better_color</code> (first time)",
+"prep": "reset_output()\nbetter_color()",
+"expression": "printed(0)",
+"expected": "'Instead of blue, Wellesley should use purple as their school color.\\n'"
+},
+{
+"label": "<code>better_color</code> (second time)",
+"prep": "reset_output()\nbetter_color()",
+"expression": "printed(0)",
+"expected": "'Instead of blue, Wellesley should use yellow as their school color.\\n'"
+},
+{
+"label": "<code>better_color</code> (third time)",
+"prep": "reset_output()\nbetter_color()",
+"expression": "printed(0)",
+"expected": "'Blue is the perfect color for Wellesley!\\n'"
+}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "group2",
+      "name": "Group 2",
+      "items": [
+        {
+          "id": "loops_and_conditionals",
+          "name": "For Loop with Conditionals",
+          "instructions": "Arrange the code so that it prints the numbers 1, 3, and 5. Note: you will only use some of the provided lines.",
+          "code": [
+"for n in '12345':",
+"for n in range(6):",
+"for n in [1, 5]:",
+"for n in range(1, 5):",
+"  if n % 2 == 1:",
+"  if n / 2 != 0:",
+"    print(n)",
+"    print(n % 2)",
+"    print(n // 2)",
+          ],
+          "tests": [
+            [ "printed(0)", "'1\\n'" ],
+            [ "printed(1)", "'3\\n'" ],
+            [ "printed(2)", "'5\\n'" ],
+            {
+              "label": "No more than 3 lines are printed.",
+              "expression": "printed(3)",
+              "expect_error": "IndexError('There are only 3 outputs, so we can\\'t retrieve #3.\\n(Counting starts from 0, so the last one available is #2)')"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
 
 #-------------#
 # Scaffolding #
@@ -77,11 +214,11 @@ def trap_exception(ex):
       tb = ex.__traceback__
     return [type(ex), str(ex), line_of(tb), None]
 
-def format_error(error):
+def format_error(error_obj):
   """
   Formats a trapped exception from trap_exception. Returns a string.
   """
-  error_type, error_msg, error_line, error_offset = error
+  error_type, error_msg, error_line, error_offset = error_obj
   return "{}: {} (on line {})".format(
     error_type.__name__,
     error_msg,
@@ -92,9 +229,12 @@ def line_of(tb):
   """
   Returns the raw line number of the last frame of a traceback.
   """
-  while (tb.tb_next != None):
+  while (tb != None and tb.tb_next != None):
     tb = tb.tb_next
-  return tb.tb_lineno
+  if tb != None:
+    return tb.tb_lineno
+  else:
+    return None
 
 #---------------#
 # Drag handlers #
@@ -293,6 +433,19 @@ def my_widget(node):
   else:
     return None
 
+def my_selector(node):
+  """
+  Figure out which info a DOM node is associated with. Recursively asks parent
+  DOM node until a node with a __selector__ property is found.
+  """
+  if hasattr(node, "__selector__"):
+    return node.__selector__
+  elif hasattr(node, "parentNode"):
+    return my_selector(node.parentNode)
+  else:
+    return None
+
+
 def my_code_block(node):
   """
   Figure out which code block a DOM node belongs to. Recursively asks parent
@@ -316,19 +469,151 @@ def same_widget(a, b):
 # Evaluation Functions #
 #----------------------#
 
+def mkprint():
+  """
+  Creates print, printed, and reset_output functions for use in testing.
+  The created functions use their own output list.
+  """
+  _output = []
+
+  def print(*args, **kwargs):
+    """
+    Print replacement that collects output into a global variable. When file= is
+    given, it falls back on standard print, however. Instead of a continuous
+    string of output, output is stored as a list of (maybe multiline) strings
+    that came from individual calls to print().
+    """
+    nonlocal _output
+    if 'file' in kwargs:
+      print(*args, **kwargs)
+    else:
+      end = kwargs.get('end')
+      if end == None: # allows explicit None
+        end = '\n'
+      sep = kwargs.get('sep')
+      if sep == None: # allows explicit None
+        sep = ' '
+      output = sep.join(str(x) for x in args) + end
+      _output.append(output)
+
+  def printed(n):
+    """
+    Retrieves the nth printed line (starting from n = 0). Raises an IndexError
+    if not enough lines have been printed. Accepts valid negative indices just
+    like a list would.
+    """
+    nonlocal _output
+    try:
+      return _output[n]
+    except IndexError:
+      if len(_output) == 0:
+        message = "No output has been produced."
+      elif len(_output) == 1:
+        message = "There is only one output, so we can't retrieve #{}.".format(
+          len(_output),
+          n
+        )
+      else:
+        message = "There are only {} outputs, so we can't retrieve #{}.".format(
+          len(_output),
+          n
+        )
+
+      if n > 0 and n == len(_output):
+        message += (
+          "\n(Counting starts from 0, so the last one available is #{})".format(
+            len(_output) - 1
+          )
+        )
+
+      raise IndexError(message)
+
+  def reset_output():
+    """
+    Erases output recorded using fake print. Use for testing purposes.
+    """
+    nonlocal _output
+    _output = []
+
+  return print, printed, reset_output
+
+def mkinput(inputs=None):
+  """
+  Creates input, and reset_input functions for use in testing. The created
+  functions use a copy of the given input list, which should be a list of
+  strings. Input calls once the given inputs are exhausted will return empty
+  strings.
+  """
+  if inputs == None:
+    _inputs = []
+  else:
+    _inputs = inputs[:]
+  _idx = 0
+
+  def input(prompt):
+    """
+    Works like the built-in input function, but pulls inputs from the given
+    list of inputs, or returns an empty string if we're out of inputs. The
+    prompt is ignored.
+    """
+    nonlocal _inputs, _idx
+    if _idx < len(_inputs):
+      result = _inputs[_idx]
+      _idx += 1
+      return result
+    else:
+      return ''
+
+  def reset_input():
+    """
+    Resets the input index to 0, so that subsequent calls to the fake input()
+    will return strings starting from the beginning of the input list again.
+    """
+    nonlocal _idx
+    _idx = 0
+
+  return (input, reset_input)
+
+def mkenv(inputs=None):
+  """
+  Creates an execution environment where input() calls will receive the given
+  inputs one by one (inputs must be a list of strings if provided).
+  """
+  result = ({}, {})
+
+  # Create fake print & input functions:
+  print, printed, reset_output = mkprint()
+  input, reset_input = mkinput(inputs)
+
+  # Make fake functions available as globals:
+  for f in (print, printed, reset_output, input, reset_input):
+    result[0][f.__name__] = f
+
+  return result
+
 def exec_code(code, env=None):
   """
   Executes the given code block in the given environment (globals, locals
   tuple), modifying that environment. It returns the modified environment (or a
   newly-constructed environment if no environment was given).
   """
-  # TODO: Why are exceptions horribly slow? Can we fix this?
   if env == None:
-    env = ({}, {}) # create a new object
+    env = mkenv() # create a new environment
 
   exec(code, globals=env[0], locals=env[1])
 
   return env
+
+def get_code_string(bucket):
+  """
+  Gets the current code string for a bucket.
+  """
+  code = ""
+  for child in bucket.children:
+    if child.hasOwnProperty("__code__"):
+      code += child.__code__ + '\n'
+  code = code[:-1] # remove trailing newline
+  return code
 
 def eval_button_handler(ev):
   """
@@ -339,64 +624,83 @@ def eval_button_handler(ev):
   # TODO: activity indicator
   bucket = ev.target.__bucket__
   widget = my_widget(bucket)
+  puzzle = widget["puzzle"]
   remove_errors(widget)
   mark_tests_as_fresh(widget)
-  code = ""
-  for child in bucket.children:
-    if child.hasOwnProperty("__code__"):
-      code += child.__code__ + '\n'
-  code = code[:-1] # remove trailing newline
+  code = get_code_string(bucket)
   log("Running code:\n---\n{}\n---".format(code))
   exception = None
-  try:
-    env = exec_code(code)
-  except Exception as e:
-    exception = trap_exception(e)
-    log("Result was an exception:\n" + ''.join(format_error(exception)))
-    attach_error_message(bucket, exception)
-    env = ({}, {})
+
+  inputs = []
+  if "input" in puzzle:
+    inputs = puzzle["input"]
+    if isinstance(inputs, str):
+      inputs = inputs.split('\n')
+
+  env = mkenv(inputs)
+
+  if "preexec" in puzzle:
+    try:
+      env = exec_code(puzzle["preexec"], env)
+    except Exception as e:
+      pre_exception = trap_exception(e)
+      error(
+        "Pre-exec raised exception:\n{}".format(format_error(pre_exception))
+      )
+      # TODO: Make these errors visible?
+
+  if exception == None:
+    try:
+      env = exec_code(code, mkenv(inputs))
+    except Exception as e:
+      exception = trap_exception(e)
+      log("Result was an exception:\n{}".format(format_error(exception)))
+      attach_error_message(bucket, exception)
 
   # Now run the pre-test code
   pte = None
-  if exception == None and "pretest" in widget["puzzle"]:
+  if exception == None and "pretest" in puzzle:
     try:
-      env = exec_code(widget["puzzle"]["pretest"], env)
+      env = exec_code(puzzle["pretest"], env)
     except Exception as e:
       # An exception here is neither recoverable nor reportable. Be careful
       # with your pre-test code.
       pte = trap_exception(e)
-      error("Exception in pre-test code:\n" + ''.join(format_error(pte)))
+      error("Exception in pre-test code:\n" + format_error(pte))
 
   # Now run tests and report results:
   test_results = run_tests(widget, env)
   report_test_results(widget, test_results, exception, pte)
 
-def attach_error_message(bucket, error):
+def attach_error_message(bucket, error_obj, expected=False):
   """
   Given a code bucket (that was just evaluated) and a TracebackException object
   (which resulted from that evaluation), this method generates an error DOM
-  node and attaches it to the relevant code block in the given bucket.
+  node and attaches it to the relevant code block in the given bucket. If
+  expected is true, the error is marked as an expected error.
   """
-  block, line = block_and_line_responsible_for(bucket, error)
-  attach_error_message_at_line(block, line, error)
+  block, line = block_and_line_responsible_for(bucket, error_obj)
+  attach_error_message_at_line(block, line, error_obj, expected=expected)
 
-def attach_error_mesage_to_code(node, error):
+def attach_error_mesage_to_code(node, error_obj, expected=False):
   """
   Works like attach_error_message, but attaches the message to an arbitrary
   code block. The error's line number should already be relative to that code
-  block.
+  block. If expected is true, the error is marked as an expected error.
   """
-  attach_error_message_at_line(node, error[2], error)
+  attach_error_message_at_line(node, error_obj[2], error_obj, expected=expected)
 
-def attach_error_message_at_line(code_elem, line, error):
+def attach_error_message_at_line(code_elem, line, error_obj, expected=False):
   """
   Attaches an error message to the given code element indicating that the given
   error occurred on the given line (inside the element).
   """
-  error_type, error_msg, error_line, error_offset = error
+  error_type, error_msg, error_line, error_offset = error_obj
   exc_msg = "{}: {}".format(error_type.__name__, error_msg)
   err = document.createElement("details")
   add_class(err, "error")
+  if expected:
+    add_class(err, "expected")
   err.innerHTML = exc_msg
   errname = document.createElement("summary")
   errname.innerText = error_type.__name__
@@ -412,14 +716,16 @@ def attach_error_message_at_line(code_elem, line, error):
       )
     )
     errdesc = document.createElement("pre")
-    add_class(errdesc, "syntax-error-description")
+    add_class(errdesc, "error-description")
     errcode = document.createElement("code")
     add_class(errcode, "language-python")
-    errcode.innerHTML = code_elem.__code__.split('\n')[line]
+    if line != None:
+      errcode.innerHTML = code_elem.__code__.split('\n')[line]
+    else:
+      errcode.innerHTML = "<unknown code>"
     browser.window.Prism.highlightElement(errcode) # highlight just the code
     errdesc.appendChild(errcode)
     # add the caret and message after the code
-    log("EO:", error_offset)
     caret_text = '<br/>' + ('&nbsp;' * error_offset) + '^'
     caret = document.createElement("span")
     caret.innerHTML = caret_text
@@ -427,24 +733,29 @@ def attach_error_message_at_line(code_elem, line, error):
     err.appendChild(errdesc)
 
   elif '\n' in code_elem.__code__: # multi-line code so identify the line
-    err.appendChild(
-      document.createTextNode(
-        "\nThe error was detected on this line:"
+    if line != None:
+      err.appendChild(
+        document.createTextNode("\nThe error was detected on this line:")
       )
-    )
-    err_line = code_elem.__code__.split('\n')[line]
-    errdesc = document.createElement("pre")
-    add_class(errdesc, "syntax-error-description")
-    errcode = document.createElement("code")
-    add_class(errcode, "language-python")
-    errcode.innerText = err_line
-    browser.window.Prism.highlightElement(errcode) # highlight just the code
-    errdesc.appendChild(errcode)
-    err.appendChild(errdesc)
+      err_line = code_elem.__code__.split('\n')[line]
+      errdesc = document.createElement("pre")
+      add_class(errdesc, "error-description")
+      errcode = document.createElement("code")
+      add_class(errcode, "language-python")
+      errcode.innerText = err_line
+      browser.window.Prism.highlightElement(errcode) # highlight just the code
+      errdesc.appendChild(errcode)
+      err.appendChild(errdesc)
+    else:
+      err.appendChild(
+        document.createTextNode(
+          "\nWe don't know which line of this block caused the error."
+        )
+      )
 
   code_elem.appendChild(err)
 
-def block_and_line_responsible_for(bucket, error):
+def block_and_line_responsible_for(bucket, error_obj):
   """
   Figures out which block of code in a bucket was responsible for the given
   traceback by counting code lines and looking at the traceback's final line
@@ -452,7 +763,7 @@ def block_and_line_responsible_for(bucket, error):
   a tuple. Logs an error and returns None if the line number is out of range
   for the code block.
   """
-  error_type, error_msg, error_line, error_offset = error
+  error_type, error_msg, error_line, error_offset = error_obj
   sofar = 0
   last = None
   lines = None
@@ -514,6 +825,9 @@ def run_tests(widget, env):
   the pre-test code, this runs the tests for the widget and returns a list of
   dictionaries (one per test in order) with the following keys:
 
+    "prep_exception": The exception thrown when executing the preparation code,
+      if any. 'result' and 'exception' will still have values, but should be
+      ignored in this case.
     "result": The result value.
     "exception": The exception thrown if any. Result will be None in this case.
     "expected": The evaluated expected value
@@ -545,19 +859,30 @@ def run_tests(widget, env):
       texpect = test["expected"]
     tresult = {
       "result": None,
+      "prep_exception": None,
       "exception": None,
       "expected": None,
       "exp_exception": None,
       "passed": False
     }
 
+    if "prep" in test:
+      try:
+        exec(test["prep"], globals=env[0], locals=env[1])
+      except Exception as e:
+        tresult["prep_exception"] = trap_exception(e)
+
     try:
       tresult["result"] = eval(texpr, globals=env[0], locals=env[1])
+      if "round" in test:
+        tresult["result"] = round(tresult["result"], test["round"])
     except Exception as e:
       tresult["exception"] = trap_exception(e)
 
     try:
       tresult["expected"] = eval(texpect, globals=env[0], locals=env[1])
+      if "round" in test:
+        tresult["expected"] = round(tresult["expected"], test["round"])
       if "expect_error" in test and test["expect_error"] != None:
         if not isinstance(tresult["expected"], Exception):
           error(
@@ -568,9 +893,9 @@ def run_tests(widget, env):
     except Exception as e:
       tresult["exp_exception"] = trap_exception(e)
 
-    # Can't pass the test if we weren't able to evaluate the expected
-    # expression:
-    if tresult["exp_exception"] != None:
+    # Can't pass the test if we weren't able to evaluate the expression or the
+    # expected expression:
+    if tresult["prep_exception"] != None or tresult["exp_exception"] != None:
       tresult["passed"] = False
     elif "expect_error" in test: # pass if the correct exception was generated
       res = tresult["exception"]
@@ -580,10 +905,7 @@ def run_tests(widget, env):
       elif res == None or exp == None:
         tresult["passed"] = False
       else:
-        tresult["passed"] = (
-          res.exc_type == exp.exc_type
-      and str(res) == str(exp)
-        )
+        tresult["passed"] = res[:2] == exp[:2] # compare types and messages
     else: # pass if the correct value was returned
       if tresult["exception"] != None:
         tresult["passed"] = False
@@ -602,7 +924,7 @@ def run_tests(widget, env):
 
   return results
 
-def report_test_results(widget, results, error=None, pretest_error=None):
+def report_test_results(widget, results, error_obj=None, pretest_error=None):
   """
   Reports test results by updating the status of individual test blocks and/or
   attaching errors to them. If there was an error before testing could be
@@ -623,7 +945,7 @@ def report_test_results(widget, results, error=None, pretest_error=None):
           results
         )
       )
-    if error != None:
+    if error_obj != None:
       ind.innerText = "Error running code."
     elif pretest_error != None:
       ind.innerText = (
@@ -650,7 +972,7 @@ def report_test_results(widget, results, error=None, pretest_error=None):
     # Widget has tests, so report success/failure
 
     passed = [r for r in results if r["passed"] == True]
-    if error != None:
+    if error_obj != None:
       ind.innerText = "? / {} tests passed (error running code)".format(
         len(results)
       )
@@ -683,11 +1005,15 @@ def report_test_results(widget, results, error=None, pretest_error=None):
           # Add result values and/or exceptions:
           if "expect_error" in test: # we are expecting an exception
             if test["expect_error"] == None: # we were expecting no exception
-              if r["exception"] != None:
-                tval.innerText = "<error>"
-                attach_error_mesage_to_code(tval, r["exception"])
+              if r["prep_exception"] != None:
+                tval.innerText = "<error during prep>"
+                attach_error_mesage_to_code(tval, r["prep_exception"])
               else:
-                tval.innerText = r["<no error>"]
+                if r["exception"] != None:
+                  tval.innerText = "<error>"
+                  attach_error_mesage_to_code(tval, r["exception"])
+                else:
+                  tval.innerText = r["<no error>"]
 
               if r["exp_exception"] != None:
                 texp.innerText = "<no error>"
@@ -699,11 +1025,23 @@ def report_test_results(widget, results, error=None, pretest_error=None):
 
             else: # we were expecting a specific exception
 
-              if r["exception"] != None:
-                tval.innerText = "<expected error>"
-                attach_error_mesage_to_code(tval, r["exception"])
+              if r["prep_exception"] != None:
+                tval.innerText = "<error during prep>"
+                attach_error_mesage_to_code(tval, r["prep_exception"])
               else:
-                tval.innerText = r["result"]
+                if r["exception"] != None:
+                  if r["passed"]:
+                    tval.innerText = "<expected error>"
+                    attach_error_mesage_to_code(
+                      tval,
+                      r["exception"],
+                      expected=True
+                    )
+                  else:
+                    tval.innerText = "<different error>"
+                    attach_error_mesage_to_code(tval, r["exception"])
+                else:
+                  tval.innerText = r["result"]
 
               if r["exp_exception"] != None:
                 texp.innerText = "<error trying to figure out expected error>"
@@ -716,7 +1054,11 @@ def report_test_results(widget, results, error=None, pretest_error=None):
               else:
                 texp.innerText = "<specific error>"
                 if r["expected"] != None:
-                  attach_error_mesage_to_code(texp, r["expected"])
+                  attach_error_mesage_to_code(
+                    texp,
+                    r["expected"],
+                    expected=True
+                  )
                 else:
                   error(
                     "Expected was None while expect_error was not:\n{}".format(
@@ -726,11 +1068,15 @@ def report_test_results(widget, results, error=None, pretest_error=None):
                   texp.innerText = "<specific error (missing)>"
 
           else: # We weren't expecting an exception:
-            if r["exception"] != None:
-              tval.innerText = "<error>"
-              attach_error_mesage_to_code(tval, r["exception"])
+            if r["prep_exception"] != None:
+              tval.innerText = "<error during prep>"
+              attach_error_mesage_to_code(tval, r["prep_exception"])
             else:
-              tval.innerText = r["result"]
+              if r["exception"] != None:
+                tval.innerText = "<error>"
+                attach_error_mesage_to_code(tval, r["exception"])
+              else:
+                tval.innerText = r["result"]
 
             if r["exp_exception"] != None:
               texp.innerText = "<error trying to figure out expected value>"
@@ -755,33 +1101,57 @@ def mark_solved(widget, solution):
 def setup_widget(node, puzzle=None):
   """
   Sets up a widget as a Parson's puzzle. First argument should be a DOM div and
-  second should be a puzzle object with the following keys:
+  second should be a puzzle object. Note that any elements currently in the
+  widget node will be removed.
   
+  Puzzle objects may have the following keys:
+  
+    id (optional):
+      A unique ID for this puzzle (will be generated otherwise.
+      TODO
+    name (optional):
+      The title of this puzzle (if not given there won't be a title element).
+      TODO
     code:
       A list of strings, each of which will be made into a draggable code
       block. If a single string is given instead, it will be split up into
       lines and each line will become a block (empty lines will be removed).
+    input (optional):
+      A list of strings or a string with newlines that will be split into a
+      list of strings. Each input() call during evaluation of the code will get
+      the next line from this list, until it is exhausted in which case
+      subsequent input() calls will get empty strings. The `reset_input`
+      function can be called within test cases to reset input outcomes back to
+      the start of the provided input.
     tests (optional):
       A list of test dictionaries, which determine whether the puzzle is solved
       or not. If no tests are given, any non-empty code that doesn't generate
-      an error will count as a solution. Each test must have the following
+      an error will count as a solution. Each test may have the following
       keys:
 
         label: A string that describes what is tested
+        prep (optional): Code to be evaluated just before evaluating the
+          expression.
         expression: The expression to evaluate as a code string
         expected: The correct value of the expression, also as a string to be
           evaluated.
-        expect_error: A code string that evaluates to an Exception object.
-          If this is present, 'expected' is ignored, and the test passes only
-          if it raises an equivalent exception (in terms of type and message).
-          This is optional. It may also be supplied as None, in which case the
-          test passes as long as no error is generated (and again "expected"
-          will be ignored). So expect_error being None is *not* the same as the
-          key being missing.
-        abstract: This key is optional; if the value is truthy, the test
-          expression and value won't be shown, but the label will be.
-        hidden: This key is optional; if the value is truthy, the test won't be
-          shown at all, but it will still be counted.
+        expect_error (optional): A code string that evaluates to an Exception
+          object. If this is present, 'expected' is ignored, and the test
+          passes only if it raises an equivalent exception (in terms of type
+          and message). This is optional. It may also be supplied as None, in
+          which case the test passes as long as no error is generated (and
+          again "expected" will be ignored). So expect_error being None is
+          *not* the same as the key being missing.
+        round (optional): For floating point tests, if 'round' is given, both
+          the expected and actual results will be rounded to this many places
+          using the built-in round() function.
+        reset_input (optional): If this is present and True, the reset_input
+          function will be called just before the test's expression is
+          evaluated (which happens before evaluating its expected expression).
+        abstract (optional): If the value is truthy, the test expression and
+          value won't be shown, but the label will be.
+        hidden (optional): If the value is truthy, the test won't be shown at
+          all, but it will still be counted.
 
       Instead of a test object with keys, a test may instead be specified using
       a tuple, where the first element is a string expression to evaluate and
@@ -809,6 +1179,12 @@ def setup_widget(node, puzzle=None):
 
   setup_base_puzzle(node, puzzle) # accepts None puzzle and defaults
 
+  add_drag_handlers(node)
+
+def add_drag_handlers(node):
+  """
+  Adds drag event handlers to the given node.
+  """
   # Set up event handlers on this widget
   node.addEventListener("dragstart", drag_start, False)
   node.addEventListener("dragend", drag_end, False)
@@ -833,44 +1209,40 @@ def blocks_from_lines(code):
 def setup_base_puzzle(node, puzzle):
   """
   Sets up a basic two-column puzzle where you drag blocks from the left into
-  blank space on the right.
+  blank space on the right. Note: current contents of the node are first
+  entirely removed.
   """
+  node.innerHTML = "" # get rid of everything
+  remove_class(node, "solved") # mark as no-longer-solved
+  # TODO: Remember widget states!
+
+  # Get puzzle or default:
   if puzzle == None:
-    puzzle = { # default puzzle:
-      "code": [
-        "a = 3",
-        "b = 4",
-        "c = a*b",
-        "a += 5",
-        "b = a + 1",
-        "c = c + a"
-      ],
-      "pretest": "",
-      "tests": [
-        ['a', '8'], # note: both sides will be evaluated
-        ['b', '9'],
-        ['c', '20'],
-      ]
-    }
+    puzzle = DEFAULT_PUZZLE
     # (default instructions will be added below)
+
+  # Get the submit_url (maybe None):
+  if node.hasAttribute("data-submit-solutions-to"):
+    # TODO: Relative URL okay?
+    submit_url = node.getAttribute("data-submit-solutions-to")
+  else:
+    submit_url = None
+
+  if "submit_url" not in puzzle:
+    puzzle["submit_url"] = submit_url
 
   # Add default instructions if they're missing:
   if "instructions" not in puzzle:
     if "tests" in puzzle:
-      puzzle["instructions"] = (
-        "Drag the code on the left into the box on the right and arrange it "
-      + "so that all of the tests pass."
-      )
+      puzzle["instructions"] = DEFAULT_INSTRUCTIONS
     else:
-      puzzle["instructions"] = (
-        "Drag the code on the left into the box on the right and arrange it "
-      + "so that there are no errors."
-      )
+      puzzle["instructions"] = DEFAULT_INSTRUCTIONS_NOTESTS
 
+  # Create the widget object:
   w = {
     "puzzle": puzzle,
     "node": node
-  } # the widget object
+  }
   node.__widget__ = w # attach it to the DOM
 
   code_blocks = puzzle["code"]
@@ -890,11 +1262,10 @@ def setup_base_puzzle(node, puzzle):
   add_class(w["source_bucket"], "code_bucket", "code_source")
   node.appendChild(w["source_bucket"])
 
-  # Shuffle the code blocks
-  # TODO: random seeding?
-  seed = puzzle["seed"] if "seed" in puzzle else 1712873
-  random.seed(seed)
-  random.shuffle(code_blocks)
+  # Note: code blocks should be pre-shuffled as part of puzzle definition. This
+  # ensures that the puzzle is always the same difficulty, and that the
+  # solution is not available to students as part of the source code of the
+  # page.
 
   # Add each code block to our source div:
   for block in code_blocks:
@@ -1043,25 +1414,22 @@ def full_test(test):
   else:
     error("Invalid test type ({}):\n{}".format(type(test), test))
     return test
-  for key in ["label", "expression", "expected"]:
-    if key not in result:
-      error("Full test without {}:\n{}".format(key, test))
+
+  if "expression" not in result:
+    error("Full test without '{}':\n{}".format(key, test))
+  if "label" not in result:
+    result["label"] = "Value of '{}'".format(result["expression"])
+  if "expected" not in result and "expect_error" not in result:
+    error(
+      "Full test without 'expected' or 'expect_error':\n{}".format(test)
+    )
   return result
 
-def sequence_puzzles(widget, puzzles):
+def load_json(url, continuation):
   """
-  Takes a list of puzzle objects and presents them one at a time through the
-  given widget, displaying a new puzzle when the current one is solved.
-  """
-  #log(puzzles[0])
-  setup_widget(widget, puzzles[0])
-  # TODO: HERE
-
-def load_puzzles(url, continuation):
-  """
-  Loads the given URL (a relative URL) and parses a JSON array of objects which
-  each define a puzzle. Passes the resulting array to the given continuation
-  function when the loading is done.
+  Loads the given URL (a relative URL) and parses a JSON object from the
+  result. Passes the resulting object to the given continuation function when
+  the loading is done.
   
   See:
   https://codepen.io/KryptoniteDove/post/load-json-file-locally-using-pure-javascript
@@ -1086,7 +1454,7 @@ def load_puzzles(url, continuation):
       # Call our callback and we're done
       continuation(obj)
     else:
-      error("Failed to load puzzles from: '" + dpath + "'")
+      error("Failed to load JSON from: '" + dpath + "'")
       error("(XMLHTTP request failed with status {})".format(req.stats))
       return
 
@@ -1097,18 +1465,114 @@ def load_puzzles(url, continuation):
     error("(XMLHTTP request raised error)")
     error(format_error(trap_exception(e)))
 
+def select_handler(ev):
+  """
+  Handles selecting an item in a procedural_selector puzzle_selector menu.
+  """
+  sel = my_selector(ev.target)
+  sel_div = ev.target.parentNode
+  which = ev.target.value
+  items = ev.target.__items__
+
+  # Remove all subsequent siblings:
+  while ev.target.nextSibling != None:
+    sel_div.removeChild(ev.target.nextSibling)
+
+  hit = False
+  for item in items:
+    if item["id"] == which:
+      hit = True
+      if "items" in item: # it's a sub-category; add another selector
+        sub_sel = create_menu_for(item["items"])
+        sel_div.insertBefore(sub_sel, ev.target.nextSibling)
+        sel_div.insertBefore(document.createTextNode(" select: "), sub_sel)
+      else: # it's a puzzle; update the widget
+        setup_base_puzzle(sel["widget_node"], item)
+
+  if not hit and which != '...':
+    error(
+      "Failed to select item: ID '{}' wasn't found among:\n{}".format(
+        which,
+        items
+      )
+    )
+
+def create_menu_for(items):
+  """
+  Takes a list of category and/or puzzle items, and creates a drop-down menu
+  element to select one of them.
+  """
+  result = document.createElement("select")
+  add_class(result, "puzzle_selector")
+  result.__items__ = items
+  # default option
+  dopt = document.createElement("option")
+  dopt.value = "..."
+  dopt.innerHTML = "..."
+  result.appendChild(dopt)
+  # one option per item
+  for item in result.__items__:
+    opt = document.createElement("option")
+    opt.value = item["id"]
+    opt.innerHTML = item["name"]
+    result.appendChild(opt)
+  result.addEventListener("change", select_handler)
+  return result
+
+def setup_selector(node, info=None):
+  if info == None:
+    if node.hasAttribute("data-puzzles"):
+      # TODO: Loading icon!
+      load_json(
+        node.getAttribute("data-puzzles"),
+        lambda info: setup_selector(node, info.to_dict())
+      ) # we'll be back in a different branch
+      return
+    else: # default info:
+      info = DEFAULT_INFO
+
+  # Create selector object:
+  s = {
+    "info": info,
+    "node": node,
+    "widget_node": node.querySelector(".procedural_widget"),
+  }
+  node.__selector__ = s # attach it to the DOM
+
+  # Add drag handlers to widget (it will never go through setup_node):
+  add_drag_handlers(s["widget_node"])
+
+  # Create selection div:
+  select_div = document.createElement("div")
+  select_div.appendChild(document.createTextNode("Select: "))
+
+  # Selection drop-down menu:
+  primary_selector = create_menu_for(info["puzzles"])
+  select_div.appendChild(primary_selector)
+
+  # Add our selector div to the node at the beginning:
+  node.insertBefore(select_div, node.firstChild)
+
+
+
 def init_procedural_widgets():
   """
   Selects all procedural_widget divs and creates elements inside each one to
   play a Parson's puzzle.
   """
 
+  # Collect each selector:
+  selectors = document.querySelectorAll(".procedural_selector")
+  for sel in selectors:
+    setup_selector(sel)
+
   # Collect each widget:
   widgets = document.querySelectorAll(".procedural_widget")
 
-  # Set up each widget automatically:
+  # Set up each widget that's not part of a selector:
   for widget in widgets:
-    setup_widget(widget)
+    if not has_class(widget.parentNode, "procedural_selector"):
+      setup_widget(widget)
 
 # Call this when script is run:
 init_procedural_widgets()

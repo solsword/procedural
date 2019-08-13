@@ -6,17 +6,32 @@
     <meta name="author" content="Peter Mawhorter"/>
     <link rel="stylesheet" href="/static/procedural.css"/>
     <link rel="stylesheet" href="/static/lib/prism.css"/>
+    <script type="text/javascript">$locals___main__ = {}</script>
     <script type="text/javascript" src="/static/brython/brython.js"></script>
     <script type="text/javascript" src="/static/brython/brython_stdlib.js"></script>
     <script type="text/javascript" src="/static/lib/prism.js" data-manual></script>
   </head>
+  <!--body onload="brython({debug:1, pythonpath:['/static/python_modules/'], ipy_id:['procedural-script']});"-->
+  <!--body onload="brython({debug:1, pythonpath:['/static/python_modules/']});"-->
   <body onload="brython(1);">
-    <script type="text/python" src="/static/procedural.py"></script>
-    You are logged in as: {{username}}
+    <script
+     type="text/python"
+     src="/static/procedural.py"
+     id="procedural-script"
+    ></script>
+    {% if username %}
+      You are logged in as: {{username}}
+    {% else %}
+      You are not logged in. <a href="/cas/login">Click here to log in.</a>
+    {% endif %}
     <div
-      class="procedural_widget"
-      data-puzzle-source="puzzles.json"
-      data-submit-soluions-to="/solved"
-    ></div>
+     class="procedural_selector"
+     data-puzzles="/static/puzzles.json"
+    >
+      <div
+       class="procedural_widget"
+       data-submit-soluions-to="/solved"
+      ></div>
+    </div>
   </body>
 </html>
