@@ -206,7 +206,7 @@ def record_solution(username, puzzle, solution):
   """
   conn = get_db_connection()
   conn.execute(
-    "INSERT INTO solutions VALUES (?, ?, ?, DATETIME('now'))",
+    "INSERT INTO solutions VALUES (?, ?, ?, DATETIME('now'));",
     (username, json.dumps(puzzle), json.dumps(solution))
   )
   conn.commit()
@@ -217,7 +217,7 @@ def all_solutions_by(username):
   return value is a list of sqlie3 Row objects.
   """
   conn = get_db_connection()
-  cur = conn.execute("SELECT * FROM solutions WHERE username = ?", (username, ))
+  cur = conn.execute("SELECT * FROM solutions WHERE username = ?;", (username,))
   return list(cur.fetchall())
 
 def get_db_connection():
