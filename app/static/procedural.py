@@ -8,6 +8,7 @@ Parson's puzzles widget, using Brython to work with Python code.
 import re
 import sys
 import traceback
+import json
 
 # Brython imports
 import browser
@@ -712,7 +713,9 @@ def eval_button_handler(ev):
   the tests, and reports results by updating test statuses and attaching error
   messages.
   """
-  ev.target.innerHTML = "<img src='loading.gif' alt=''>Checking Solution..."
+  ev.target.innerHTML = (
+    "<img src='/static/loading.gif' alt=''>Checking Solution..."
+  )
   ev.target.disabled = True
   # TODO: activity indicator
   bucket = ev.target.__bucket__
@@ -869,10 +872,13 @@ def block_and_line_responsible_for(bucket, error_obj):
   """
   error_type, error_msg, error_line, error_offset = error_obj
   sofar = 0
+  first = None
   last = None
   lines = None
   for child in bucket.children:
     if child.hasOwnProperty("__code__"):
+      if first == None:
+        first = child
       last = child
       lines = len(child.__code__.split('\n'))
       if sofar + lines >= error_line:
@@ -890,7 +896,7 @@ def block_and_line_responsible_for(bucket, error_obj):
       error_line
     )
   )
-  return None
+  return (first, 0)
 
 def mark_errors_as_stale(widget):
   """
@@ -1198,6 +1204,110 @@ def mark_solved(widget, solution):
   add_class(widget["node"], "solved")
   # TODO: report solution more directly?
 
+  # If the widget has a solution URL, report the solution
+  if widget["submit_url"]:
+    status_div = widget["submission_status"]
+    if has_class(status_div, "active"):
+      # there's already a submission in flight...
+      log(
+        "Warning: solution re-submitted while prior submission was in flight."
+      )
+    remove_class(status_div, "succeeded", "failed")
+    add_class(status_div, "active")
+    status_div.innerHTML = (
+      "<img src='/static/loading.gif' alt=''/> Submitting solution..."
+    )
+
+    #puzzle_json = json.dumps(widget["puzzle"])
+    #sol_json = json.dumps(solution)
+    puzzle_json = browser.window.JSON.stringify(widget["puzzle"])
+    sol_json = browser.window.JSON.stringify(solution)
+    handler = feedback_handler(widget)
+    browser.ajax.post(
+      widget["submit_url"],
+      data={'puzzle': puzzle_json, 'solution': sol_json},
+      oncomplete=handler,
+      timeout=25,
+      ontimeout=handler
+    )
+
+def reason_for(status):
+  """
+  Turns an HTML status code into a text reason for an error.
+  """
+  if status < 200:
+    return "unknown ({})".format(status)
+  elif status in (200, 201):
+    return "actually, the request succeeded ({})".format(status)
+  elif status < 300:
+    return "unknown ({})".format(status)
+  elif status < 400:
+    return "redirect ({})".format(status)
+  elif status == 400:
+    return "bad request ({})".format(status)
+  elif status == 401:
+    return "unauthorized ({})".format(status)
+  elif status == 403:
+    return "forbidden ({})".format(status)
+  elif status == 404:
+    return "not found ({})".format(status)
+  elif status == 408:
+    return "server timeout ({})".format(status)
+  elif status < 500:
+    return "client error ({})".format(status)
+  elif status < 600:
+    return "server error ({})".format(status)
+  else:
+    return "unknown ({})".format(status)
+
+def feedback_handler(widget):
+  """
+  Creates a feedback handler for solution submissions by the given widget.
+  """
+
+  def handle_solution_feedback(req):
+    """
+    Handles the server response for a posted solution. The response is expected
+    to be a JSON object with keys 'status' and 'reason', where 'status' should
+    be either 'valid' for success or 'invalid' for failure.
+    """
+    nonlocal widget
+    status_div = widget["submission_status"]
+    failed = False
+    if (
+      req.status not in (200, 201)
+  and (req.status != 0 or not dpath.startswith("file://"))
+    ):
+      # Failure at the protocol level
+      failed = True
+      reason = reason_for(req.status)
+    else:
+      try:
+        response = browser.window.JSON.parse(req.text)
+        if response.status != "valid":
+          failed = True
+          reason = response.reason
+        # otherwise failed stays False
+      except Exception as e:
+        reason = format_error(trap_exception(e))
+        failed = True
+
+    if failed:
+      remove_class(status_div, "active", "succeeded")
+      add_class(status_div, "failed")
+      status_div.innerHTML = (
+        "Failed to upload solution! Reason: {}. Try checking your solution "
+      + "again?"
+      ).format(
+        reason
+      )
+    else:
+      remove_class(status_div, "active", "failed")
+      add_class(status_div, "succeeded")
+      status_div.innerHTML = "Solution uploaded successfully."
+
+  return handle_solution_feedback
+
 #-----------------#
 # Setup functions #
 #-----------------#
@@ -1319,7 +1429,18 @@ def setup_base_puzzle(node, puzzle):
   blank space on the right. Note: current contents of the node are first
   entirely removed.
   """
-  node.innerHTML = "" # get rid of everything
+  # Remove any old puzzle elements or loading divs:
+  for old in node.querySelectorAll(".loading"):
+    old.parentNode.removeChild(old)
+  for old in node.querySelectorAll(".instructions"):
+    old.parentNode.removeChild(old)
+  for old in node.querySelectorAll(".code_bucket"):
+    old.parentNode.removeChild(old)
+  for old in node.querySelectorAll(".tests"):
+    old.parentNode.removeChild(old)
+  for old in node.querySelectorAll(".submission_status"):
+    old.parentNode.removeChild(old)
+
   remove_class(node, "solved") # mark as no-longer-solved
   # TODO: Remember widget states!
 
@@ -1328,16 +1449,6 @@ def setup_base_puzzle(node, puzzle):
     puzzle = DEFAULT_PUZZLE
     # (default instructions will be added below)
 
-  # Get the submit_url (maybe None):
-  if node.hasAttribute("data-submit-solutions-to"):
-    # TODO: Relative URL okay?
-    submit_url = node.getAttribute("data-submit-solutions-to")
-  else:
-    submit_url = None
-
-  if "submit_url" not in puzzle:
-    puzzle["submit_url"] = submit_url
-
   # Add default instructions if they're missing:
   if "instructions" not in puzzle:
     if "tests" in puzzle:
@@ -1345,9 +1456,17 @@ def setup_base_puzzle(node, puzzle):
     else:
       puzzle["instructions"] = DEFAULT_INSTRUCTIONS_NOTESTS
 
+  # Get the submit_url (maybe None):
+  if node.hasAttribute("data-submit-solutions-to"):
+    # TODO: Relative URL okay?
+    submit_url = node.getAttribute("data-submit-solutions-to")
+  else:
+    submit_url = None
+
   # Create the widget object:
   w = {
     "puzzle": puzzle,
+    "submit_url": submit_url,
     "node": node
   }
   node.__widget__ = w # attach it to the DOM
@@ -1357,6 +1476,14 @@ def setup_base_puzzle(node, puzzle):
     code_blocks = blocks_from_lines(code_blocks)
 
   w["code_blocks"] = code_blocks
+
+  # submission status div
+  w["submission_status"] = browser.document.createElement("div")
+  add_class(w["submission_status"], "submission_status")
+  w["submission_status"].innerHTML = (
+    "Click the 'Check Solution' button to test your solution. If it works, it will be uploaded automatically."
+  )
+  node.appendChild(w["submission_status"])
 
   # instructions div
   w["instructions"] = browser.document.createElement("div")
@@ -1568,7 +1695,10 @@ def load_json(url, continuation):
 
   # Load asynchronously
   def catch(req):
-    if req.status == 200 or (req.status == 0 and dpath.startswith("file://")):
+    if (
+      req.status in (200, 201)
+   or (req.status == 0 and dpath.startswith("file://"))
+    ):
       try:
         # Using Python's json module here is horrifically slow
         obj = browser.window.JSON.parse(req.text)

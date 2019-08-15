@@ -13,6 +13,7 @@ import flask_talisman
 import os
 import json
 import sqlite3
+import traceback
 
 #------------------#
 # Global Variables #
@@ -45,15 +46,12 @@ CREATE TABLE solutions (
 );
 """
 
-# Database connection
-CONN = None
-
 #-------------------------#
 # Setup and Configuration #
 #-------------------------#
 
 app = flask.Flask(__name__)
-#flask_talisman.Talisman(app, content_security_policy=CSP) # force HTTPS
+flask_talisman.Talisman(app, content_security_policy=CSP) # force HTTPS
 cas = flask_cas.CAS(app, '/cas') # enable CAS
 # Wellesley College login config:
 app.config["CAS_SERVER"] = "https://login.wellesley.edu:443"
@@ -141,7 +139,18 @@ def route_puzzle():
     ]
   }
 
+def returnJSON(f):
+  """
+  Wraps a function so that returned objects are dumped to JSON strings before
+  being passed further outwards. 
+  """
+  def wrapped(*args, **kwargs):
+    r = f(*args, **kwargs)
+    return json.dumps(r)
+  return wrapped
+
 @app.route("/solved", methods=["POST"])
+@returnJSON
 def route_solved():
   """
   POST route that accepts and records puzzle solutions. The requests must have
@@ -175,8 +184,13 @@ def route_solved():
 
   try:
     record_solution(flask.session["CAS_USERNAME"], puzzle, solution)
-  except:
-    return { "status": "invalid", "reason": "failed to save solution" }
+  except Exception as e:
+    tbe = traceback.TracebackException.from_exception(e)
+    print("Failed to save solution:\n" + '\n'.join(tbe.format()))
+    return {
+      "status": "invalid",
+      "reason": "failed to save solution"
+    }
 
   # TODO: Verify solutions at all?
 
@@ -190,19 +204,30 @@ def record_solution(username, puzzle, solution):
   """
   Records a solution in the database.
   """
-  CONN.execute(
-    "INSERT INTO solutions VALUES (?, ?, ?)",
-    (username, json.dumps(puzzle), json.dumps(solution))
-  ) # (timestamp defaults to current time)
-  CONN.commit()
+  conn = get_db_connection()
+  conn.execute(
+    "INSERT INTO solutions VALUES (?, ?, ?, ?)",
+    (username, json.dumps(puzzle), json.dumps(solution), None)
+    # TODO: correct timestamp!
+  )
+  conn.commit()
 
 def all_solutions_by(username):
   """
   Retrieves from the database a list of all solutions by the given user. The
   return value is a list of sqlie3 Row objects.
   """
-  cur = CONN.execute("SELECT * FROM solutions WHERE username = ?", (username, ))
+  conn = get_db_connection()
+  cur = conn.execute("SELECT * FROM solutions WHERE username = ?", (username, ))
   return list(cur.fetchall())
+
+def get_db_connection():
+  """
+  Gets a connection to the database.
+  """
+  conn = sqlite3.connect(DATABASE)
+  conn.row_factory = sqlite3.Row # return results as Row objects
+  return conn
 
 #--------------#
 # Startup Code #
@@ -211,12 +236,9 @@ def all_solutions_by(username):
 if __name__ == "__main__":
   # Set up database if it doesn't already exist:
   if not os.path.exists(DATABASE):
-    CONN = sqlite3.connect(DATABASE)
-    CONN.execute(SCHEMA)
-  else:
-    CONN = sqlite3.connect(DATABASE)
-  CONN.row_factory = sqlite3.Row # return results as Row objects
+    conn = get_db_connection()
+    conn.execute(SCHEMA)
   #app.debug = True
   #app.run('localhost', 1942, ssl_context=('cert.pem', 'key.pem'))
-  #app.run('0.0.0.0', 1947, ssl_context=('cert.pem', 'key.pem'))
-  app.run('localhost', 1947)
+  app.run('0.0.0.0', 1947, ssl_context=('cert.pem', 'key.pem'))
+  #app.run('localhost', 1947)

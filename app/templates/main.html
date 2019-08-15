@@ -10,9 +10,7 @@
     <script type="text/javascript" src="/static/brython/brython_stdlib.js"></script>
     <script type="text/javascript" src="/static/lib/prism.js" data-manual></script>
   </head>
-  <!--body onload="brython({debug:1, pythonpath:['/static/python_modules/'], ipy_id:['procedural_script']});"-->
   <body onload="brython({debug:1, pythonpath:['/static/python_modules/']});">
-  <!--body onload="brython(1);"-->
     <script
      type="text/python"
      src="/static/procedural.py"
@@ -29,8 +27,10 @@
      aria-busy="true"
      aria-live="polite"
     >
-      <div class="procedural_widget" data-submit-soluions-to="/solved">
-        <div class="loading"><img src="/static/loading.gif" alt=""/> Loading...</div>
+      <div class="procedural_widget" data-submit-solutions-to="/solved">
+        <div class="loading">
+          <img src="/static/loading.gif" alt=""/> Loading...
+        </div>
       </div>
     </div>
   </body>

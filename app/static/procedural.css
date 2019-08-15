@@ -40,12 +40,12 @@
 }
 
 .procedural_widget .code_bucket {
-  border: 1pt solid #aaaaaa;
+  border: 1pt solid #aaa;
   border-radius: 6pt;
   padding: 6pt;
   padding-bottom: 32pt; /* always room to drop at bottom */
   margin: 5pt;
-  background-color: #eeeeee;
+  background-color: #eee;
   position: relative; /* becomes an anchor for relative positioning inside */
   max-height: 80vh;
   overflow-y: scroll;
@@ -139,22 +139,22 @@
 .procedural_widget .test_feedback.abstract .test_value { display: none; }
 
 .procedural_widget .test_feedback.failed {
-  border-color: #880000;
+  border-color: #800;
   background-color: #ffe4e4;
 }
 
 .procedural_widget .test_feedback.passed {
-  border-color: #006688;
-  background-color: #ddeeff;
+  border-color: #068;
+  background-color: #def;
 }
 
 .procedural_widget .test_feedback.failed.stale {
-  border-color: #888800;
+  border-color: #880;
   background-color: #ffffe4;
 }
 
 .procedural_widget .test_feedback.passed.stale {
-  border-color: #aabbdd;
+  border-color: #abd;
   background-color: #f4f8ff;
 }
 
@@ -303,3 +303,34 @@
 .procedural_widget .token.keyword { color: var(--gr); }
 .procedural_widget .token.builtin { color: var(--gr); }
 .procedural_widget .token.boolean { color: var(--gr); }
+
+.procedural_widget .submission_status {
+  grid-column: 1 / 3;
+  border: 1pt solid #888;
+  background-color: #ddd;
+  border-radius: 4pt;
+  padding: 4pt;
+}
+
+.procedural_widget .submission_status.active {
+  border-color: #808;
+  background-color: #fef;
+}
+
+.procedural_widget .submission_status.failed {
+  border: 1pt solid #800;
+  background-color: #fbb;
+  color: #800;
+}
+
+.procedural_widget .submission_status.succeeded {
+  border-color: #086;
+  background-color: #dfe;
+}
+
+/* TODO: THESE */
+.procedural_widget .submission_status.failed.stale,
+.procedural_widget .submission_status.succeeded.stale {
+  border-color: #ffb;
+  background-color: #ffb;
+}
