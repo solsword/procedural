@@ -19,14 +19,14 @@
   white-space: pre;
 }
 
-.procedural_widget pre.error-description {
+.procedural_widget pre.error_description {
   background-color: white;
   border-radius: 4pt;
   padding: 4pt;
 }
 
 /* specific enough to beat Prism styles */
-.procedural_widget pre.error-description code {
+.procedural_widget pre.error_description code {
   font-size: 14pt;
   font-family: "Consolas", monospace;
   color: black;
@@ -47,6 +47,8 @@
   margin: 5pt;
   background-color: #eeeeee;
   position: relative; /* becomes an anchor for relative positioning inside */
+  max-height: 80vh;
+  overflow-y: scroll;
 }
 
 .procedural_widget .code_bucket .bucket_title {
@@ -56,12 +58,13 @@
 }
 
 
-.procedural_widget .code_bucket .eval-button {
+.procedural_widget .code_bucket .eval_button {
   /* position at bottom-right always */
-  font-size: 16pt;
-  position: absolute;
-  bottom: 6pt;
-  right: 6pt;
+  -webkit-appearance: button;
+  font-size: larger;
+  border-radius: 4pt;
+  margin: 0pt 4pt 0pt 4pt;
+  float: right;
 }
 
 .procedural_widget .code_block,
@@ -69,12 +72,12 @@
 .procedural_widget .code_slot {
   border: 1pt solid red; /* color will be changed */
   border-radius: 4pt;
-  padding: 4pt;
+  padding: 6pt 4pt 10pt 4pt; /* extra room for scroll bar on bottom */
   margin: 3pt;
   display: block;
   font-family: monospace;
   white-space: pre;
-  overflow-x: auto;
+  overflow-x: scroll;
   box-sizing: border-box;
   color: black;
   background-color: white;
@@ -180,6 +183,8 @@
   background-color: #ddeeff;
   min-height: 16pt;
   font-family: serif;
+  white-space: normal;
+  overflow-x: auto;
 }
 
 /*
@@ -198,7 +203,7 @@
 
 .procedural_widget .code_block.hovered, .procedural_widget .code_slot.hovered {
   border-width: 1.5pt;
-  padding: 3.5pt;
+  padding: 5.5pt 3.5pt 9.5pt 3.5pt;
   /* Note: setting a top-margin to indicate drop area would be nice, but causes
    * quite noticeable slowdown due to dithering */
 }

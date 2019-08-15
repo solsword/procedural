@@ -11,7 +11,7 @@ import traceback
 
 # Brython imports
 import browser
-from browser import document, window
+#from browser import document, window
 import browser.ajax
 import javascript
 
@@ -157,6 +157,51 @@ DEFAULT_INFO = {
 # Scaffolding #
 #-------------#
 
+def make_dict(jsobj, memo=None):
+  """
+  Converts a JSObject to a dictionary, and also converts any values
+  recursively.
+  """
+  if memo == None:
+    memo = {}
+  # This is potentially needed to deal with recursive objects:
+  if id(jsobj) in memo:
+    # TODO: Hash collisions?!?
+    return memo[id(jsobj)]
+  if isinstance(jsobj, javascript.JSObject):
+    d1 = jsobj.to_dict()
+    memo[id(jsobj)] = d1
+    for k in d1:
+      d1[k] = make_dict(d1[k], memo)
+    return d1
+  elif (
+    isinstance(jsobj, str)
+ or isinstance(jsobj, int)
+ or isinstance(jsobj, float)
+ or isinstance(jsobj, bool)
+ or (hasattr(jsobj, "__eq__") and None == jsobj)
+  ): # already converted?
+    return jsobj
+  elif browser.window.Array.isArray(jsobj) or isinstance(jsobj, list):
+    l1 = []
+    for item in jsobj:
+      l1.append(make_dict(item))
+    return l1
+  elif isinstance(jsobj, dict):
+    d1 = {}
+    for k in jsobj:
+      d1[k] = make_dict(jsobj[k])
+    return d1
+  else:
+    d1 = {}
+    memo[id(jsobj)] = d1
+    for key in browser.window.Object.keys(jsobj):
+      prd = browser.window.Object.getOwnPropertyDescriptor(jsobj, key)
+      if prd != None:
+        val = prd.value
+        d1[key] = val
+    return d1
+
 def error(*messages):
   """
   Reports an error by logging it to the console (as an error if possible).
@@ -240,6 +285,8 @@ def line_of(tb):
 # Drag handlers #
 #---------------#
 
+# TODO: keyboard options!
+
 # global reference to DOM element being dragged
 DRAGGED = None
 
@@ -258,6 +305,19 @@ def drag_start(ev):
 
   DRAGGED = ev.target
   add_class(DRAGGED, "dragging")
+  DRAGGED.setAttribute("aria-dragged", "true")
+  # Set aria-dropeffect on all valid targets:
+  widget = my_widget(DRAGGED)
+  wnode = widget["node"]
+  buckets = wnode.querySelectorAll(".code_bucket")
+  slots = wnode.querySelectorAll(".code_slot")
+  blocks = wnode.querySelectorAll(".code_block")
+  for item in buckets:
+    item.setAttribute("aria-dropeffect", "move")
+  for item in slots:
+    item.setAttribute("aria-dropeffect", "move")
+  for item in blocks:
+    item.setAttribute("aria-dropeffect", "move")
   return False
 
 def drag_end(ev):
@@ -265,9 +325,25 @@ def drag_end(ev):
   Handles the drag end event, which happens when the drag ends without a drop.
   """
   global DRAGGED
+  # Remove aria-dropeffect from all targets:
+  widget = my_widget(DRAGGED)
+  if widget != None:
+    wnode = widget["node"]
+    buckets = wnode.querySelectorAll(".code_bucket")
+    slots = wnode.querySelectorAll(".code_slot")
+    blocks = wnode.querySelectorAll(".code_block")
+    for item in buckets:
+      item.removeAttribute("aria-dropeffect")
+    for item in slots:
+      item.removeAttribute("aria-dropeffect")
+    for item in blocks:
+      item.removeAttribute("aria-dropeffect")
+
+  # Reset DRAGGED
   if DRAGGED != None:
     remove_class(DRAGGED, "dragging")
     DRAGGED = None
+
   ev.preventDefault()
   return False
 
@@ -328,6 +404,20 @@ def drag_drop(ev):
   element (the target).
   """
   global DRAGGED
+
+  # Remove aria-dropeffect from all targets:
+  widget = my_widget(DRAGGED)
+  wnode = widget["node"]
+  buckets = wnode.querySelectorAll(".code_bucket")
+  slots = wnode.querySelectorAll(".code_slot")
+  blocks = wnode.querySelectorAll(".code_block")
+  for item in buckets:
+    item.removeAttribute("aria-dropeffect")
+  for item in slots:
+    item.removeAttribute("aria-dropeffect")
+  for item in blocks:
+    item.removeAttribute("aria-dropeffect")
+
   if not same_widget(ev.target, DRAGGED):
     ev.preventDefault()
     return False
@@ -392,7 +482,7 @@ def create_slot():
   """
   Creates a new empty slot div.
   """
-  slot = document.createElement("div")
+  slot = browser.document.createElement("div")
   add_class(slot, "code_slot")
   slot.innerHTML = "&nbsp;" # don't let it be completely empty
   return slot
@@ -403,10 +493,11 @@ def add_code_block_to_bucket(bucket, code):
   element and translates from raw code to HTML specifics. The given bucket
   element should be a DOM element with the code_bucket class.
   """
-  codeblock = document.createElement("code")
+  codeblock = browser.document.createElement("code")
   add_class(codeblock, "code_block")
   add_class(codeblock, "language-python")
   codeblock.draggable = True
+  codeblock.setAttribute("aria-dragged", "false")
   codeblock.__code__ = code
   codeblock.innerHTML = code
   # Note: this must be innerHTML, not innerText! (otherwise line breaks get
@@ -621,6 +712,8 @@ def eval_button_handler(ev):
   the tests, and reports results by updating test statuses and attaching error
   messages.
   """
+  ev.target.innerHTML = "<img src='loading.gif' alt=''>Checking Solution..."
+  ev.target.disabled = True
   # TODO: activity indicator
   bucket = ev.target.__bucket__
   widget = my_widget(bucket)
@@ -672,6 +765,10 @@ def eval_button_handler(ev):
   test_results = run_tests(widget, env)
   report_test_results(widget, test_results, exception, pte)
 
+  # Finally re-enable the button
+  ev.target.innerHTML = "Check Solution"
+  ev.target.disabled = False
+
 def attach_error_message(bucket, error_obj, expected=False):
   """
   Given a code bucket (that was just evaluated) and a TracebackException object
@@ -697,12 +794,12 @@ def attach_error_message_at_line(code_elem, line, error_obj, expected=False):
   """
   error_type, error_msg, error_line, error_offset = error_obj
   exc_msg = "{}: {}".format(error_type.__name__, error_msg)
-  err = document.createElement("details")
+  err = browser.document.createElement("details")
   add_class(err, "error")
   if expected:
     add_class(err, "expected")
   err.innerHTML = exc_msg
-  errname = document.createElement("summary")
+  errname = browser.document.createElement("summary")
   errname.innerText = error_type.__name__
   err.appendChild(errname)
   if not hasattr(code_elem, "__code__"):
@@ -711,23 +808,24 @@ def attach_error_message_at_line(code_elem, line, error_obj, expected=False):
     )
   if issubclass(error_type, SyntaxError):
     err.appendChild(
-      document.createTextNode(
+      browser.document.createTextNode(
         "\nThe error was detected at this point:"
       )
     )
-    errdesc = document.createElement("pre")
-    add_class(errdesc, "error-description")
-    errcode = document.createElement("code")
+    errdesc = browser.document.createElement("pre")
+    add_class(errdesc, "error_description")
+    errcode = browser.document.createElement("code")
     add_class(errcode, "language-python")
+    errcode.innerHTML = "<unknown line>"
     if line != None:
-      errcode.innerHTML = code_elem.__code__.split('\n')[line]
-    else:
-      errcode.innerHTML = "<unknown code>"
+      clines = code_elem.__code__.split('\n')
+      if 0 <= line < len(clines):
+        errcode.innerHTML = clines[line]
     browser.window.Prism.highlightElement(errcode) # highlight just the code
     errdesc.appendChild(errcode)
     # add the caret and message after the code
     caret_text = '<br/>' + ('&nbsp;' * error_offset) + '^'
-    caret = document.createElement("span")
+    caret = browser.document.createElement("span")
     caret.innerHTML = caret_text
     errdesc.appendChild(caret)
     err.appendChild(errdesc)
@@ -735,12 +833,18 @@ def attach_error_message_at_line(code_elem, line, error_obj, expected=False):
   elif '\n' in code_elem.__code__: # multi-line code so identify the line
     if line != None:
       err.appendChild(
-        document.createTextNode("\nThe error was detected on this line:")
+        browser.document.createTextNode(
+          "\nThe error was detected on this line:"
+        )
       )
-      err_line = code_elem.__code__.split('\n')[line]
-      errdesc = document.createElement("pre")
-      add_class(errdesc, "error-description")
-      errcode = document.createElement("code")
+      clines = code_elem.__code__.split('\n')
+      if 0 <= line < len(clines):
+        err_line = clines[line]
+      else:
+        err_line = "<unknown line>"
+      errdesc = browser.document.createElement("pre")
+      add_class(errdesc, "error_description")
+      errcode = browser.document.createElement("code")
       add_class(errcode, "language-python")
       errcode.innerText = err_line
       browser.window.Prism.highlightElement(errcode) # highlight just the code
@@ -748,7 +852,7 @@ def attach_error_message_at_line(code_elem, line, error_obj, expected=False):
       err.appendChild(errdesc)
     else:
       err.appendChild(
-        document.createTextNode(
+        browser.document.createTextNode(
           "\nWe don't know which line of this block caused the error."
         )
       )
@@ -1181,6 +1285,9 @@ def setup_widget(node, puzzle=None):
 
   add_drag_handlers(node)
 
+  # remove aria-busy property
+  node.removeAttribute("aria-busy")
+
 def add_drag_handlers(node):
   """
   Adds drag event handlers to the given node.
@@ -1252,13 +1359,13 @@ def setup_base_puzzle(node, puzzle):
   w["code_blocks"] = code_blocks
 
   # instructions div
-  w["instructions"] = document.createElement("div")
+  w["instructions"] = browser.document.createElement("div")
   add_class(w["instructions"], "instructions")
   w["instructions"].innerHTML = puzzle["instructions"]
   node.appendChild(w["instructions"])
 
   # bucket for source blocks
-  w["source_bucket"] = document.createElement("div")
+  w["source_bucket"] = browser.document.createElement("div")
   add_class(w["source_bucket"], "code_bucket", "code_source")
   node.appendChild(w["source_bucket"])
 
@@ -1279,34 +1386,35 @@ def setup_base_puzzle(node, puzzle):
     add_code_block_to_bucket(w["source_bucket"], block)
 
   # bucket for solution blocks
-  w["soln_bucket"] = document.createElement("div")
+  w["soln_bucket"] = browser.document.createElement("div")
   add_class(w["soln_bucket"], "code_bucket", "soln_list")
   node.appendChild(w["soln_bucket"])
 
   # Add empty slot at top to anchor dropping
   add_empty_slot_to_bucket(w["soln_bucket"])
+  eslot = w["soln_bucket"].firstChild
 
   # Put text in the slot
   w["soln_bucket"].lastChild.innerText = (
     "Drop code here (or below) to add it to your solution."
   )
 
-  # Create evaluate button in solution bucket:
-  eb = document.createElement("input")
-  add_class(eb, "eval-button")
-  eb.type = "button"
-  eb.value = "check"
+  # Create evaluate button in the empty slot:
+  eb = browser.document.createElement("button")
+  add_class(eb, "eval_button")
+  eb.innerText = "Check Solution"
   eb.__bucket__ = w["soln_bucket"]
   eb.addEventListener("click", eval_button_handler)
-  w["soln_bucket"].appendChild(eb)
+  #eslot.appendChild(eb)
+  eslot.insertBefore(eb, eslot.firstChild)
 
   if "tests" in puzzle:
     # tests div
-    w["test_div"] = document.createElement("details")
+    w["test_div"] = browser.document.createElement("details")
     add_class(w["test_div"], "tests")
 
     # We've got tests but they need to be hidden
-    w["test_indicator"] = document.createElement("summary")
+    w["test_indicator"] = browser.document.createElement("summary")
     add_class(w["test_indicator"], "test_indicator")
     w["test_indicator"].innerText = "? / {} tests passed".format(
       len(puzzle["tests"])
@@ -1317,7 +1425,7 @@ def setup_base_puzzle(node, puzzle):
     hidden_count = 0
     for test in puzzle["tests"]:
       test = full_test(test)
-      tnode = document.createElement("div")
+      tnode = browser.document.createElement("div")
       add_class(tnode, "test_feedback")
       if test.get("hidden"):
         add_class(tnode, "hidden")
@@ -1326,25 +1434,25 @@ def setup_base_puzzle(node, puzzle):
         add_class(tnode, "abstract")
 
       # Test status
-      tstatus = document.createElement("span")
+      tstatus = browser.document.createElement("span")
       add_class(tstatus, "test_status")
       tstatus.innerText = "" # CSS :after fills this in
       tnode.appendChild(tstatus)
 
       # Label for the entire test
-      tlabel = document.createElement("span")
+      tlabel = browser.document.createElement("span")
       add_class(tlabel, "test_label")
       tlabel.innerHTML = test["label"]
       tnode.appendChild(tlabel)
 
       # Test expression label
-      texpr_label = document.createElement("span")
+      texpr_label = browser.document.createElement("span")
       add_class(texpr_label, "field_label")
       texpr_label.innerText = "Expression:"
       tnode.appendChild(texpr_label)
 
       # Test expression
-      texpr = document.createElement("code")
+      texpr = browser.document.createElement("code")
       w["test_elements"].append(tnode) # same order as tests
       add_class(texpr, "test_expr", "test_code")
       add_class(texpr, "language-python")
@@ -1354,13 +1462,13 @@ def setup_base_puzzle(node, puzzle):
       tnode.appendChild(texpr)
 
       # Value label
-      tval_label = document.createElement("span")
+      tval_label = browser.document.createElement("span")
       add_class(tval_label, "field_label")
       tval_label.innerText = "Value:"
       tnode.appendChild(tval_label)
 
       # Value of the expression
-      tval = document.createElement("code")
+      tval = browser.document.createElement("code")
       add_class(tval, "test_value", "test_code")
       tval.innerText = "?"
       if "expect_error" in test:
@@ -1370,13 +1478,13 @@ def setup_base_puzzle(node, puzzle):
       tnode.appendChild(tval)
 
       # Expected label
-      texp_label = document.createElement("span")
+      texp_label = browser.document.createElement("span")
       add_class(texp_label, "field_label")
       texp_label.innerText = "Expected:"
       tnode.appendChild(texp_label)
 
       # Expected value
-      texp = document.createElement("code")
+      texp = browser.document.createElement("code")
       add_class(texp, "test_expected", "test_code")
       if "expect_error" in test:
         texp.innerText = test["expect_error"]
@@ -1391,20 +1499,20 @@ def setup_base_puzzle(node, puzzle):
 
     # Add note about hidden tests
     if hidden_count == len(puzzle["tests"]):
-      note = document.createTextNode("(all tests are secret)")
+      note = browser.document.createTextNode("(all tests are secret)")
       w["test_div"].appendChild(note)
     elif hidden_count > 0:
-      note = document.createTextNode(
+      note = browser.document.createTextNode(
         "(plus {} secret tests)".format(hidden_count)
       )
       w["test_div"].appendChild(note)
 
   else: # solution = error-free arrangement of all blocks
     # tests div
-    w["test_div"] = document.createElement("div")
+    w["test_div"] = browser.document.createElement("div")
     add_class(w["test_div"], "tests")
 
-    w["test_indicator"] = document.createElement("span")
+    w["test_indicator"] = browser.document.createElement("span")
     add_class(w["test_indicator"], "test_indicator", "boolean")
     w["test_indicator"].innerText = "Click 'check' to run the code..."
     w["test_div"].appendChild(w["test_indicator"])
@@ -1419,7 +1527,7 @@ def full_test(test):
   if isinstance(test, dict):
     result = test
   elif isinstance(test, javascript.JSObject):
-    result = test.to_dict()
+    result = make_dict(test)
   elif isinstance(test, [list, tuple]):
     result = {
       "label": "Value of '{}'".format(test[0]),
@@ -1443,8 +1551,7 @@ def full_test(test):
 def load_json(url, continuation):
   """
   Loads the given URL (a relative URL) and parses a JSON object from the
-  result. Passes the resulting object to the given continuation function when
-  the loading is done.
+  result. Passes the resulting object to the given continuation function when the loading is done.
   
   See:
   https://codepen.io/KryptoniteDove/post/load-json-file-locally-using-pure-javascript
@@ -1452,9 +1559,12 @@ def load_json(url, continuation):
   Note that with Chrome --allow-file-access-from-files will be necessary if not
   being hosted by a server.
   """
-  base = window.location.href
+  base = browser.window.location.href
   path = '/'.join(base.split('/')[:-1])
-  dpath = path + "/" + url
+  if url.startswith('/'):
+    dpath = path + url
+  else:
+    dpath = path + "/" + url
 
   # Load asynchronously
   def catch(req):
@@ -1498,10 +1608,16 @@ def select_handler(ev):
     if item["id"] == which:
       hit = True
       if "items" in item: # it's a sub-category; add another selector
-        sub_sel = create_menu_for(item["items"])
+        sub_items = item["items"]
+        sub_items = make_dict(sub_items)
+        sub_sel = create_menu_for(sub_items)
         sel_div.insertBefore(sub_sel, ev.target.nextSibling)
-        sel_div.insertBefore(document.createTextNode(" select: "), sub_sel)
+        sel_div.insertBefore(
+          browser.document.createTextNode(" select: "),
+          sub_sel
+        )
       else: # it's a puzzle; update the widget
+        item = make_dict(item)
         setup_base_puzzle(sel["widget_node"], item)
 
   if not hit and which != '...':
@@ -1517,17 +1633,17 @@ def create_menu_for(items):
   Takes a list of category and/or puzzle items, and creates a drop-down menu
   element to select one of them.
   """
-  result = document.createElement("select")
+  result = browser.document.createElement("select")
   add_class(result, "puzzle_selector")
-  result.__items__ = items
+  result.__items__ = make_dict(items)
   # default option
-  dopt = document.createElement("option")
+  dopt = browser.document.createElement("option")
   dopt.value = "..."
   dopt.innerHTML = "..."
   result.appendChild(dopt)
   # one option per item
   for item in result.__items__:
-    opt = document.createElement("option")
+    opt = browser.document.createElement("option")
     opt.value = item["id"]
     opt.innerHTML = item["name"]
     result.appendChild(opt)
@@ -1540,7 +1656,7 @@ def setup_selector(node, info=None):
       # TODO: Loading icon!
       load_json(
         node.getAttribute("data-puzzles"),
-        lambda info: setup_selector(node, info.to_dict())
+        lambda info: setup_selector(node, make_dict(info))
       ) # we'll be back in a different branch
       return
     else: # default info:
@@ -1558,15 +1674,18 @@ def setup_selector(node, info=None):
   add_drag_handlers(s["widget_node"])
 
   # Create selection div:
-  select_div = document.createElement("div")
-  select_div.appendChild(document.createTextNode("Select: "))
+  select_div = browser.document.createElement("div")
+  select_div.appendChild(browser.document.createTextNode("Select: "))
 
   # Selection drop-down menu:
-  primary_selector = create_menu_for(info["puzzles"])
+  primary_selector = create_menu_for(make_dict(info["puzzles"]))
   select_div.appendChild(primary_selector)
 
   # Add our selector div to the node at the beginning:
   node.insertBefore(select_div, node.firstChild)
+
+  # Remove aria-busy property now that it's ready:
+  node.removeAttribute("aria-busy")
 
 
 
@@ -1576,17 +1695,17 @@ def init_procedural_widgets():
   play a Parson's puzzle.
   """
   # Hide loading tags:
-  loading = document.querySelectorAll(".procedural_widget .loading")
+  loading = browser.document.querySelectorAll(".procedural_widget .loading")
   for l in loading:
     l.style.display = "none"
 
   # Collect each selector:
-  selectors = document.querySelectorAll(".procedural_selector")
+  selectors = browser.document.querySelectorAll(".procedural_selector")
   for sel in selectors:
     setup_selector(sel)
 
   # Collect each widget:
-  widgets = document.querySelectorAll(".procedural_widget")
+  widgets = browser.document.querySelectorAll(".procedural_widget")
 
   # Set up each widget that's not part of a selector:
   for widget in widgets:

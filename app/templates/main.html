@@ -6,18 +6,17 @@
     <meta name="author" content="Peter Mawhorter"/>
     <link rel="stylesheet" href="/static/procedural.css"/>
     <link rel="stylesheet" href="/static/lib/prism.css"/>
-    <script type="text/javascript">$locals___main__ = {}</script>
     <script type="text/javascript" src="/static/brython/brython.js"></script>
     <script type="text/javascript" src="/static/brython/brython_stdlib.js"></script>
     <script type="text/javascript" src="/static/lib/prism.js" data-manual></script>
   </head>
-  <!--body onload="brython({debug:1, pythonpath:['/static/python_modules/'], ipy_id:['procedural-script']});"-->
-  <!--body onload="brython({debug:1, pythonpath:['/static/python_modules/']});"-->
-  <body onload="brython(1);">
+  <!--body onload="brython({debug:1, pythonpath:['/static/python_modules/'], ipy_id:['procedural_script']});"-->
+  <body onload="brython({debug:1, pythonpath:['/static/python_modules/']});">
+  <!--body onload="brython(1);"-->
     <script
      type="text/python"
      src="/static/procedural.py"
-     id="procedural-script"
+     id="procedural_script"
     ></script>
     {% if username %}
       You are logged in as: {{username}}
@@ -27,11 +26,12 @@
     <div
      class="procedural_selector"
      data-puzzles="/static/puzzles.json"
+     aria-busy="true"
+     aria-live="polite"
     >
-      <div
-       class="procedural_widget"
-       data-submit-soluions-to="/solved"
-      ></div>
+      <div class="procedural_widget" data-submit-soluions-to="/solved">
+        <div class="loading"><img src="/static/loading.gif" alt=""/> Loading...</div>
+      </div>
     </div>
   </body>
 </html>

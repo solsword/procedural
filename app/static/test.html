@@ -14,32 +14,42 @@
     <!--script type="text/javascript" src="procedural.js"></script-->
     <script type="text/python" src="procedural.py"></script>
     <h1>Default puzzle interface</h1>
-    <p>
-      Has selectors for groups and puzzles (doesn't yet remember puzzle status
-      of previously solved puzzles). These three puzzles (use the menus to
-      select) are the most interesting.
-    </p>
+    Has selectors for groups and puzzles (doesn't yet remember puzzle status of
+    previously solved puzzles). These three puzzles (use the menus to select)
+    are the most interesting.
     <div class="procedural_selector">
       <div class="procedural_widget">
-        <div class="loading"><img src="loading.gif"/> Loading...</div>
+        <div class="loading"><img src="loading.gif" alt=""/> Loading...</div>
+      </div>
+    </div>
+    <h1>Same interface with CS 111 puzzles</h1>
+    These puzzles are loaded from a JSON file.
+    <div
+     class="procedural_selector"
+     data-puzzles="puzzles.json"
+     aria-busy="true"
+     aria-live="polite"
+    >
+      <div class="procedural_widget" data-submit-soluions-to="/solved">
+        <div class="loading"><img src="/static/loading.gif" alt=""/> Loading...</div>
       </div>
     </div>
     <h1>Additional individual puzzles</h1>
     This is the default puzzle:
-    <div class="procedural_widget">
-        <div class="loading"><img src="loading.gif"/> Loading...</div>
+    <div class="procedural_widget" aria-busy="true" aria-live="polite">
+        <div class="loading"><img src="loading.gif" alt=""/> Loading...</div>
     </div>
     This puzzle has no tests, so you just have to use every block of code and avoid errors:
-    <div class="procedural_widget" data-puzzle='{ "code": [ "@str\ndef function(x, y, z):", "    indented = 4\n    print(x, y + z)", "    string = \"one two three\"\n    return True or None", "    \"This is a long line of code that will hopefully demonstrate any wrapping issues that might occur\"", "#----This comment is exactly 80 characters long.--------------------------------" ] }'>
-        <div class="loading"><img src="loading.gif"/> Loading...</div>
+    <div class="procedural_widget" aria-busy="true" aria-live="polite" data-puzzle='{ "code": [ "@str\ndef function(x, y, z):", "    indented = 4\n    print(x, y + z)", "    string = \"one two three\"\n    return True or None", "    \"This is a long line of code that will hopefully demonstrate any wrapping issues that might occur\"", "#----This comment is exactly 80 characters long.--------------------------------" ] }'>
+        <div class="loading"><img src="loading.gif" alt=""/> Loading...</div>
     </div>
     Mostly the same puzzle as above, but with single lines. Both of these puzzles are mostly intended to show off the full range of syntax highlighting.
-    <div class="procedural_widget" data-puzzle='{ "code": "@str\ndef function(x, y, z):\n    indented = 4\n    print(x, y + z)\n    string = \"one two three\"\n    return True or None" }'>
-        <div class="loading"><img src="loading.gif"/> Loading...</div>
+    <div class="procedural_widget" aria-busy="true" aria-live="polite" data-puzzle='{ "code": "@str\ndef function(x, y, z):\n    indented = 4\n    print(x, y + z)\n    string = \"one two three\"\n    return True or None" }'>
+        <div class="loading"><img src="loading.gif" alt=""/> Loading...</div>
     </div>
     Another very simple puzzle.
-    <div class="procedural_widget" data-puzzle='{ "code": "a = 1\nb = a\na = 3\nc = b + 4", "tests": [ ["a", "3"], ["b", "1"], ["c", "5"] ] }'>
-        <div class="loading"><img src="loading.gif"/> Loading...</div>
+    <div class="procedural_widget" aria-busy="true" aria-live="polite" data-puzzle='{ "code": "a = 1\nb = a\na = 3\nc = b + 4", "tests": [ ["a", "3"], ["b", "1"], ["c", "5"] ] }'>
+        <div class="loading"><img src="loading.gif" alt=""/> Loading...</div>
     </div>
   </body>
 </html>
