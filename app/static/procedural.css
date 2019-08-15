@@ -178,7 +178,8 @@
 .procedural_widget .code_slot {
   border-color: #4488cc;
   background-color: #ddeeff;
-  height: 16pt;
+  min-height: 16pt;
+  font-family: serif;
 }
 
 /*
@@ -202,17 +203,13 @@
    * quite noticeable slowdown due to dithering */
 }
 
-/* TODO: apply arrows to all lines of code that will move? */
-
-/* arrow icons to indicate where drop will happen: */
-.procedural_widget .code_block.hovered:before, .procedural_widget .code_slot.hovered:before {
-  content: "↓  ";
-  font-family: monospace;
+/* bottom margin opens space where code will be dropped */
+.procedural_widget .code_block.hovered, .procedural_widget .code_slot.hovered {
+  margin-bottom: 28pt;
 }
 
-.procedural_widget .dragging + .hovered:before {
-  content: "↑  ";
-  font-family: monospace;
+.procedural_widget .hovered + .dragging {
+  margin-top: -25pt; /* cancel margin if we're dragging above ourselves*/
 }
 
 .procedural_widget .error {

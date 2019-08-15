@@ -35,7 +35,7 @@ DEFAULT_PUZZLE = { # default puzzle:
     "b = a + 1",
     "a += 5",
     "b = 4",
-    "c = c + a"
+    "c = c + a",
     "a = 3",
   ],
   "pretest": "",
@@ -333,22 +333,22 @@ def drag_drop(ev):
     return False
   my_block = my_code_block(ev.target)
   if has_class(ev.target, "code_slot") or my_block != None:
-    # drop on a slot: insert ourselves after the slot
+    # drop on a slot or code block: insert ourselves after the slot
     slot = my_block or ev.target
     if slot.isSameNode(DRAGGED): # drop on ourselves: do nothing
       ev.preventDefault()
       remove_class(slot, "hovered")
       return
     if my_block != None:
-      after = DRAGGED.nextSibling
+      before = DRAGGED.previousSibling
     DRAGGED.parentNode.removeChild(DRAGGED)
-    if my_block != None and slot.isSameNode(after):
-      # if we're dropping on a block and it's the block below us, we should
+    if my_block != None and slot.isSameNode(before):
+      # if we're dropping on a block and it's the block above us, we should
       # swap places instead of going nowhere:
-      slot.parentNode.insertBefore(DRAGGED, after.nextSibling)
-    else:
-      # otherwise just add ourselves before the target:
       slot.parentNode.insertBefore(DRAGGED, slot)
+    else:
+      # otherwise just add ourselves after the target:
+      slot.parentNode.insertBefore(DRAGGED, slot.nextSibling)
     # now clean up classes:
     remove_class(slot, "hovered")
 
@@ -1262,6 +1262,13 @@ def setup_base_puzzle(node, puzzle):
   add_class(w["source_bucket"], "code_bucket", "code_source")
   node.appendChild(w["source_bucket"])
 
+  # Add empty slot at top to anchor dropping
+  add_empty_slot_to_bucket(w["source_bucket"])
+  # Put text in the slot
+  w["source_bucket"].lastChild.innerText = (
+    "Drop code here (or below) to remove it from your solution."
+  )
+
   # Note: code blocks should be pre-shuffled as part of puzzle definition. This
   # ensures that the puzzle is always the same difficulty, and that the
   # solution is not available to students as part of the source code of the
@@ -1275,6 +1282,14 @@ def setup_base_puzzle(node, puzzle):
   w["soln_bucket"] = document.createElement("div")
   add_class(w["soln_bucket"], "code_bucket", "soln_list")
   node.appendChild(w["soln_bucket"])
+
+  # Add empty slot at top to anchor dropping
+  add_empty_slot_to_bucket(w["soln_bucket"])
+
+  # Put text in the slot
+  w["soln_bucket"].lastChild.innerText = (
+    "Drop code here (or below) to add it to your solution."
+  )
 
   # Create evaluate button in solution bucket:
   eb = document.createElement("input")
@@ -1560,6 +1575,10 @@ def init_procedural_widgets():
   Selects all procedural_widget divs and creates elements inside each one to
   play a Parson's puzzle.
   """
+  # Hide loading tags:
+  loading = document.querySelectorAll(".procedural_widget .loading")
+  for l in loading:
+    l.style.display = "none"
 
   # Collect each selector:
   selectors = document.querySelectorAll(".procedural_selector")
