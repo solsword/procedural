@@ -206,9 +206,8 @@ def record_solution(username, puzzle, solution):
   """
   conn = get_db_connection()
   conn.execute(
-    "INSERT INTO solutions VALUES (?, ?, ?, ?)",
-    (username, json.dumps(puzzle), json.dumps(solution), None)
-    # TODO: correct timestamp!
+    "INSERT INTO solutions VALUES (?, ?, ?, DATETIME('now'))",
+    (username, json.dumps(puzzle), json.dumps(solution))
   )
   conn.commit()
 
