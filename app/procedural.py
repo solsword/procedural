@@ -40,9 +40,10 @@ DATABASE = "solutions.sqlite3"
 SCHEMA = """
 CREATE TABLE solutions (
   username TEXT NOT NULL,
-  puzzle TEXT,
+  timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+  puzzle_id TEXT,
   solution TEXT,
-  timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+  puzzle TEXT
 );
 """
 
@@ -206,8 +207,13 @@ def record_solution(username, puzzle, solution):
   """
   conn = get_db_connection()
   conn.execute(
-    "INSERT INTO solutions VALUES (?, ?, ?, DATETIME('now'));",
-    (username, json.dumps(puzzle), json.dumps(solution))
+    "INSERT INTO solutions VALUES (?, DATETIME('now'), ?, ?, ?);",
+    (
+      username,
+      puzzle.get("id", "__unknown__"),
+      json.dumps(puzzle),
+      json.dumps(solution)
+    )
   )
   conn.commit()
 
@@ -218,6 +224,18 @@ def all_solutions_by(username):
   """
   conn = get_db_connection()
   cur = conn.execute("SELECT * FROM solutions WHERE username = ?;", (username,))
+  return list(cur.fetchall())
+
+def all_solutions_to(puzzle_id):
+  """
+  Retrieves from the database a list of all solutions to the given puzzle. The
+  return value is a list of sqlie3 Row objects.
+  """
+  conn = get_db_connection()
+  cur = conn.execute(
+    "SELECT * FROM solutions WHERE puzzle_id = ?;",
+    (puzzle_id,)
+  )
   return list(cur.fetchall())
 
 def get_db_connection():
