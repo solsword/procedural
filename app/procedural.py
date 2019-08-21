@@ -8,7 +8,7 @@ puzzles using CAS logins.
 
 import flask
 import flask_cas
-import flask_talisman
+#import flask_talisman
 
 import os
 import json
@@ -52,7 +52,7 @@ CREATE TABLE solutions (
 #-------------------------#
 
 app = flask.Flask(__name__)
-flask_talisman.Talisman(app, content_security_policy=CSP) # force HTTPS
+#flask_talisman.Talisman(app, content_security_policy=CSP) # force HTTPS
 cas = flask_cas.CAS(app, '/cas') # enable CAS
 # Wellesley College login config:
 app.config["CAS_SERVER"] = "https://login.wellesley.edu:443"
@@ -101,8 +101,8 @@ def route_login():
 #---------------#
 
 # TODO: real login!
-#@flask_cas.login_required
-@fake_login
+@flask_cas.login_required
+#@fake_login
 @app.route('/')
 def route_root():
   return flask.render_template(
