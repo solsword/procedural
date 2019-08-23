@@ -31,6 +31,8 @@ DEFAULT_INSTRUCTIONS_NOTESTS = (
 )
 
 DEFAULT_PUZZLE = { # default puzzle:
+  "id": "default_puzzle",
+  "name": "Default Puzzle",
   "code": [
     "c = a*b",
     "b = a + 1",
@@ -48,8 +50,9 @@ DEFAULT_PUZZLE = { # default puzzle:
 }
 
 DEFAULT_INFO = {
-  "title": "Default puzzles",
-  "puzzles": [
+  "id": "default_puzzles",
+  "name": "Default puzzles",
+  "categories": [
     {
       "id": "group1",
       "name": "Group 1",
@@ -153,6 +156,8 @@ DEFAULT_INFO = {
     }
   ]
 }
+
+DEFAULT_PUZZLES_URL = "/puzzle"
 
 #-------------#
 # Scaffolding #
@@ -298,6 +303,7 @@ def drag_start(ev):
   button held down. The element under the cursor becomes the event's target.
   """
   global DRAGGED
+  log("DRAG_START")
   # okay to use this here because things inside aren't draggable, so event will
   # bubble to the code_block div, which is.
   if not has_class(ev.target, "code_block"):
@@ -319,6 +325,8 @@ def drag_start(ev):
     item.setAttribute("aria-dropeffect", "move")
   for item in blocks:
     item.setAttribute("aria-dropeffect", "move")
+  log("HE")
+  # TODO Why don't the other drag events fire?!?
   return False
 
 def drag_end(ev):
@@ -326,6 +334,7 @@ def drag_end(ev):
   Handles the drag end event, which happens when the drag ends without a drop.
   """
   global DRAGGED
+  log("DRAG_END")
   # Remove aria-dropeffect from all targets:
   widget = my_widget(DRAGGED)
   if widget != None:
@@ -354,6 +363,7 @@ def drag_enter(ev):
   new element (the target).
   """
   global DRAGGED
+  log("DRAG_ENTER")
 
   if not same_widget(ev.target, DRAGGED):
     return False
@@ -373,6 +383,7 @@ def drag_leave(ev):
   element (the target) that it was previously over.
   """
   global DRAGGED
+  log("DRAG_LEAVE")
 
   if not same_widget(ev.target, DRAGGED):
     return False
@@ -396,6 +407,7 @@ def drag_over(ev):
   dragged over another element (the target). Preventing the default allows
   dropping.
   """
+  log("DRAG_OVER")
   ev.preventDefault()
   return False
 
@@ -405,6 +417,7 @@ def drag_drop(ev):
   element (the target).
   """
   global DRAGGED
+  log("DRAG_DROP")
 
   # Remove aria-dropeffect from all targets:
   widget = my_widget(DRAGGED)
@@ -1321,7 +1334,7 @@ def setup_widget(node, puzzle=None):
   Puzzle objects may have the following keys:
   
     id (optional):
-      A unique ID for this puzzle (will be generated otherwise.
+      A unique ID for this puzzle (will be generated otherwise).
       TODO
     name (optional):
       The title of this puzzle (if not given there won't be a title element).
@@ -1675,10 +1688,14 @@ def full_test(test):
     )
   return result
 
-def load_json(url, continuation):
+def load_json(url, callback, params=None):
   """
   Loads the given URL (a relative URL) and parses a JSON object from the
-  result. Passes the resulting object to the given continuation function when the loading is done.
+  result. Passes the resulting object to the given callback function when the
+  loading is done.
+
+  If params are not None, POST is used and the given parameters are included in
+  the request.
   
   See:
   https://codepen.io/KryptoniteDove/post/load-json-file-locally-using-pure-javascript
@@ -1707,14 +1724,28 @@ def load_json(url, continuation):
         error(format_error(trap_exception(e)))
         return
       # Call our callback and we're done
-      continuation(obj)
+      callback(obj)
     else:
       error("Failed to load JSON from: '" + dpath + "'")
-      error("(XMLHTTP request failed with status {})".format(req.stats))
+      error("(XMLHTTP request failed with status {})".format(req.status))
       return
 
   try:
-    browser.ajax.get(dpath, oncomplete=catch)
+    if params == None:
+      browser.ajax.get(
+        dpath,
+        timeout=25,
+        ontimeout=catch,
+        oncomplete=catch
+      )
+    else:
+      browser.ajax.post(
+        dpath,
+        data=params,
+        timeout=25,
+        oncomplete=catch
+        ontimeout=catch
+      )
   except Exception as e:
     error("Failed to load puzzles from: '" + dpath + "'")
     error("(XMLHTTP request raised error)")
@@ -1780,18 +1811,122 @@ def create_menu_for(items):
   result.addEventListener("change", select_handler)
   return result
 
+def load_puzzle(url, puzzle, callback):
+  """
+  Takes a URL and a dictionary with a key "load_id" and loads puzzle
+  information for that puzzle, modifying the given dictionary, and finally
+  calling the given callback with the modified dictionary as its only argument.
+  """
+  load_json(
+    url,
+    lambda loaded: receive_puzzle(puzzle, loaded, callback),
+    params={ "id": puzzle["load_id"] }
+  )
+
+def receive_puzzle(puzzle, loaded, callback):
+  """
+  Callback for loading a puzzle that receives a JSON object 'loaded' and
+  updates the given puzzle dictionary.
+  """
+  puzzle.update(make_dict(loaded))
+  puzzle["loaded_id"] = puzzle["load_id"]
+  del puzzle["load_id"] # so we don't try to load this puzzle again
+  callback(puzzle)
+
+def ensure_fully_loaded(info, callback):
+  """
+  Given a puzzle category dictionary or a puzzle, ensures that all individual
+  puzzles (perhaps in sub-categories) are actually loaded and not stubs with
+  'load_puzzle' specified. If stubs are found, it loads those stubs to create a
+  complete info object, and then calls the given callback with the fleshed-out
+  info object as its only argument. It immediately calls the callback if there
+  are no stubs present.
+  """
+  continue_loading(info, callback)
+
+def continue_loading(info, final_continuation):
+  """
+  Callback to find the next unloaded puzzle in the given info object and load
+  it, and then call continue_loading again. Only if there are no unloaded
+  puzzles will the final_continuation be called, with the info object as its
+  only argument.
+  """
+  path = [info]
+  indices = [0]
+  while True:
+    here = path[-1]
+    index = indices[-1]
+    if "items" in here:
+      if index < len(here["items"]):
+        path.append(make_dict(here["items"][index]))
+        indices.append(0)
+      else:
+        # go out one level
+        path.pop()
+        indices.pop()
+        if len(indices) > 0:
+          indices[-1] += 1 # and advance to next item at that level
+        else:
+          # we're done!
+          break
+    else:
+      if "load_id" in here:
+        load_puzzle(
+          info["puzzles_url"],
+          here,
+          lambda puzzle: continue_loading(info, final_continuation)
+        )
+        return # callback will re-enter loop from start
+      else:
+        # already loaded puzzle or something else; ignore it
+        path.pop()
+        indices.pop()
+        if len(indices) > 0:
+          indices[-1] += 1
+        else:
+          # we're done!
+          break
+
+  # if we reach the end of the loop, that means that we didn't find any
+  # unloaded puzzles and we've explored the entire tree.
+  final_continuation(info)
+
+
 def setup_selector(node, info=None):
+  """
+  Sets up a selector div to select from the given categories. Loads category
+  info from the 'data-categories' attribute of the target node if info is None,
+  or uses the default categories. Once categories are determined, it calls
+  ensure_fully_loaded to make sure that all puzzles in each category get loaded
+  before the selector is set up.
+  """
   if info == None:
-    if node.hasAttribute("data-puzzles"):
+    if node.hasAttribute("data-categories"):
       # TODO: Loading icon!
       load_json(
-        node.getAttribute("data-puzzles"),
-        lambda info: setup_selector(node, make_dict(info))
-      ) # we'll be back in a different branch
+        node.getAttribute("data-categories"),
+        lambda info: setup_selector(node, info)
+      ) # call ourselves but take the other branch
       return
     else: # default info:
       info = DEFAULT_INFO
+  else:
+    info = make_dict(info)
 
+  if "puzzles_url" not in info:
+    if node.hasAttribute("data-load-puzzles-from"):
+      info["puzzles_url"] = node.getAttribute("data-load-puzzles-from")
+    else:
+      info["puzzles_url"] = DEFAULT_PUZZLES_URL
+
+  ensure_fully_loaded(info, lambda info: setup_selector_definite(node, info))
+
+
+def setup_selector_definite(node, info):
+  """
+  Sets up a selector div (see setup_selector) but only accepts valid,
+  fully-loaded info objects.
+  """
   # Create selector object:
   s = {
     "info": info,
@@ -1808,7 +1943,7 @@ def setup_selector(node, info=None):
   select_div.appendChild(browser.document.createTextNode("Select: "))
 
   # Selection drop-down menu:
-  primary_selector = create_menu_for(make_dict(info["puzzles"]))
+  primary_selector = create_menu_for(info["categories"])
   select_div.appendChild(primary_selector)
 
   # Add our selector div to the node at the beginning:

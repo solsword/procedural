@@ -8,9 +8,11 @@ puzzles using CAS logins.
 
 import flask
 import flask_cas
-import flask_talisman
+#import flask_talisman
+import werkzeug
 
 import os
+import sys
 import json
 import sqlite3
 import traceback
@@ -33,11 +35,14 @@ CSP = {
   ],
 }
 
-# Database filename
-DATABASE = "solutions.sqlite3"
+# Solutions database filename
+SOL_DATABASE = "solutions.sqlite3"
+
+# Permissions database filename
+PERM_DATABASE = "permissions.sqlite3"
 
 # Database schema
-SCHEMA = """
+SOL_SCHEMA = """
 CREATE TABLE solutions (
   username TEXT NOT NULL,
   timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -47,12 +52,21 @@ CREATE TABLE solutions (
 );
 """
 
+PERM_SCHEMA = """
+CREATE TABLE permissions (
+  username TEXT UNIQUE NOT NULL,
+  is_admin TEXT,
+  permissions TEXT
+);
+"""
+
+
 #-------------------------#
 # Setup and Configuration #
 #-------------------------#
 
 app = flask.Flask(__name__)
-flask_talisman.Talisman(app, content_security_policy=CSP) # force HTTPS
+#flask_talisman.Talisman(app, content_security_policy=CSP) # force HTTPS
 cas = flask_cas.CAS(app, '/cas') # enable CAS
 # Wellesley College login config:
 app.config["CAS_SERVER"] = "https://login.wellesley.edu:443"
@@ -96,6 +110,41 @@ def route_login():
   flask.session["CAS_USERNAME"] = "LOGGED IN"
   return flask.redirect(next)
 
+#-------------------#
+# Custom Decorators #
+#-------------------#
+
+def returnJSON(f):
+  """
+  Wraps a function so that returned objects are dumped to JSON strings before
+  being passed further outwards. 
+  """
+  def wrapped(*args, **kwargs):
+    r = f(*args, **kwargs)
+    return json.dumps(r)
+
+  wrapped.__name__ = f.__name__
+  return wrapped
+
+def admin_only(f):
+  """
+  Wraps a function so that it first checks the CAS username against the
+  permissions database and retursn 403 (forbidden) if the user isn't set up as
+  an admin.
+  """
+  def wrapped(*args, **kwargs):
+    username = flask.session.get("CAS_USERNAME", None)
+    if username == None:
+      return (403, "Unregistered user.")
+    else:
+      if not is_admin(username):
+        return (403, "You must be an administrator to access this page.")
+      else:
+        return f(*args, **kwargs)
+
+  wrapped.__name__ = f.__name__
+  return wrapped
+
 #---------------#
 # Server Routes #
 #---------------#
@@ -111,44 +160,46 @@ def route_root():
   )
 
 @app.route('/test')
+@admin_only
 def route_test():
   return flask.render_template(
     "main.html",
     username='test'
   )
 
-@app.route("/puzzle")
+@app.route("/puzzle", methods=["GET", "POST"])
 def route_puzzle():
   """
-  This route returns JSON puzzles.
-
-  TODO: Not always the same one...
+  This route returns JSON puzzles from the puzzles/ directory.
   """
-  return { # default puzzle:
-    "code": [
-      "a = 3",
-      "b = 4",
-      "c = a*b",
-      "a += 5",
-      "b = a + 1",
-      "c = c + a"
-    ],
-    "tests": [
-      ['a', '8'], # note: both sides will be evaluated
-      ['b', '9'],
-      ['c', '20'],
-    ]
-  }
-
-def returnJSON(f):
-  """
-  Wraps a function so that returned objects are dumped to JSON strings before
-  being passed further outwards. 
-  """
-  def wrapped(*args, **kwargs):
-    r = f(*args, **kwargs)
-    return json.dumps(r)
-  return wrapped
+  id = flask.request.form.get("id", None)
+  if id == None:
+    return { # default puzzle:
+      "id": "default_server_puzzle",
+      "name": "Default Server Puzzle",
+      "code": [
+        "a = 3",
+        "b = 4",
+        "c = a*b",
+        "a += 5",
+        "b = a + 1",
+        "c = c + a"
+      ],
+      "tests": [
+        ['a', '8'], # note: both sides will be evaluated
+        ['b', '9'],
+        ['c', '20'],
+      ]
+    }
+  else:
+    id = werkzeug.utils.secure_filename(id)
+    target = os.path.join("puzzles", id + ".json")
+    if os.path.exists(target):
+      with open(target, 'r') as fin:
+        puzzle = fin.read()
+      return puzzle
+    else:
+      return (404, "Puzzle '{}' does not exist.".format(id))
 
 @app.route("/solved", methods=["POST"])
 @returnJSON
@@ -205,7 +256,7 @@ def record_solution(username, puzzle, solution):
   """
   Records a solution in the database.
   """
-  conn = get_db_connection()
+  conn = get_sol_db_connection()
   conn.execute(
     "INSERT INTO solutions VALUES (?, DATETIME('now'), ?, ?, ?);",
     (
@@ -216,33 +267,174 @@ def record_solution(username, puzzle, solution):
     )
   )
   conn.commit()
+  conn.close()
 
 def all_solutions_by(username):
   """
   Retrieves from the database a list of all solutions by the given user. The
   return value is a list of sqlie3 Row objects.
   """
-  conn = get_db_connection()
+  conn = get_sol_db_connection()
   cur = conn.execute("SELECT * FROM solutions WHERE username = ?;", (username,))
-  return list(cur.fetchall())
+  result = list(cur.fetchall())
+  conn.close()
+  return result
 
 def all_solutions_to(puzzle_id):
   """
   Retrieves from the database a list of all solutions to the given puzzle. The
   return value is a list of sqlie3 Row objects.
   """
-  conn = get_db_connection()
+  conn = get_sol_db_connection()
   cur = conn.execute(
     "SELECT * FROM solutions WHERE puzzle_id = ?;",
     (puzzle_id,)
   )
-  return list(cur.fetchall())
+  result = list(cur.fetchall())
+  conn.close()
+  return result
 
-def get_db_connection():
+def is_admin(user_id):
   """
-  Gets a connection to the database.
+  Retrieves a user's admin status from the permissions database.
   """
-  conn = sqlite3.connect(DATABASE)
+  conn = get_perm_db_connection()
+  cur = conn.execute(
+    "SELECT is_admin FROM permissions WHERE username = ?;",
+    (user_id,)
+  )
+  results = list(cur.fetchall())
+  conn.close()
+
+  return (
+    len(results) > 0
+and results[0][0] == "True"
+  )
+
+def get_permisisons(user_id):
+  """
+  Retrieves a user's permissions object from the permissions database. Returns
+  None for unlisted users.
+  """
+  conn = get_perm_db_connection()
+  cur = conn.execute(
+    "SELECT permissions FROM permissions WHERE username = ?;",
+    (user_id,)
+  )
+  results = list(cur.fetchall())
+  if len(results) <= 0:
+    return None:
+  else:
+    try:
+      return json.loads(results[0][0])
+    except:
+      print(
+        "Warning: error fetching or parsing permissions for  user '{}'".format(
+          user_id
+        ),
+        file=sys.stderr
+      )
+      return None
+    finally:
+      conn.close()
+
+def set_permisisons(user_id, perm_obj):
+  """
+  Resets a user's permissions entirely. Adds a non-admin entry to the
+  permissions database if necessary.
+  """
+
+  try:
+    perm_string = json.dumps(perm_obj)
+  except:
+    print(
+      (
+        "Warning: user permissions not set for '{}' because object couldn't "
+      + "be serialized:\n{}"
+      ).format(user_id, repr(perm_obj)),
+      file=sys.stderr
+    )
+    return
+
+  conn = get_perm_db_connection()
+  cur = conn.execute(
+    "SELECT * FROM permissions WHERE username = ?;",
+    (user_id,)
+  )
+  if len(list(cur.fetchall())) > 0: # user already exists
+    conn.execute(
+      "UPDATE permissions SET permissions = ? WHERE username = ?;",
+      (perm_string, user_id,)
+    )
+  else: # new user
+    conn.execute(
+      "INSERT INTO permissions VALUES (?, ?, ?);",
+      (user_id, 'False', perm_string)
+    )
+  conn.close()
+
+def set_admin(user_id, admin='True'):
+  """
+  Sets the 'admin' property of the given user, by default making them an admin.
+  Any value besides 'True' will be treated as a regular user. Prints a warning
+  message and does nothing if the given user doesn't already exist.
+  """
+  conn = get_perm_db_connection()
+  # Check if the user already exists: 
+  cur = conn.execute(
+    "SELECT * FROM permissions WHERE username = ?;",
+    (user_id,)
+  )
+  if len(list(cur.fetchall())) == 0: # user doesn't exists
+    print(
+      "Attempt to set admin status of non-existent user '{}'.".format(user_id),
+      file=sys.stderr
+    )
+  else:
+    conn.execute(
+      "UPDATE permissions SET is_admin = ? WHERE username = ?;",
+      (admin, user_id)
+    )
+
+  conn.close()
+
+def add_user(user_id, is_admin='False'):
+  """
+  Adds the given user to the permissions database. Set is_admin to the string
+  'True' to make the user an administrator. Prints a warning and does nothing
+  if the user already exists.
+  """
+  conn = get_perm_db_connection()
+  # Check if the user already exists: 
+  cur = conn.execute(
+    "SELECT * FROM permissions WHERE username = ?;",
+    (user_id,)
+  )
+  if len(list(cur.fetchall())) > 0: # user already exists
+    print(
+      "Attempt to create user '{}' who already exists.".format(user_id),
+      file=sys.stderr
+    )
+  else:
+    set_permisisons(user_id, {}) # creates user automatically
+    if is_admin != 'False': # that's the default in set_permissions
+      set_admin(user_id, is_admin)
+
+  conn.close()
+
+def get_sol_db_connection():
+  """
+  Gets a connection to the solutions database.
+  """
+  conn = sqlite3.connect(SOL_DATABASE)
+  conn.row_factory = sqlite3.Row # return results as Row objects
+  return conn
+
+def get_perm_db_connection():
+  """
+  Gets a connection to the permissions database.
+  """
+  conn = sqlite3.connect(PERM_DATABASE)
   conn.row_factory = sqlite3.Row # return results as Row objects
   return conn
 
@@ -251,11 +443,16 @@ def get_db_connection():
 #--------------#
 
 if __name__ == "__main__":
-  # Set up database if it doesn't already exist:
-  if not os.path.exists(DATABASE):
-    conn = get_db_connection()
-    conn.execute(SCHEMA)
+  # Set up databases if they doesn't already exist:
+  if not os.path.exists(SOL_DATABASE):
+    conn = get_sol_db_connection()
+    conn.execute(SOL_SCHEMA)
+    conn.close()
+  if not os.path.exists(PERM_DATABASE):
+    conn = get_perm_db_connection()
+    conn.execute(PERM_SCHEMA)
+    conn.close()
   #app.debug = True
   #app.run('localhost', 1942, ssl_context=('cert.pem', 'key.pem'))
-  app.run('0.0.0.0', 1947, ssl_context=('cert.pem', 'key.pem'))
-  #app.run('localhost', 1947)
+  #app.run('0.0.0.0', 1947, ssl_context=('cert.pem', 'key.pem'))
+  app.run('localhost', 1947)
