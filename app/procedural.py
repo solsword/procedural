@@ -150,8 +150,8 @@ def admin_only(f):
 #---------------#
 
 # TODO: real login!
-#@flask_cas.login_required
-@fake_login
+@flask_cas.login_required
+#@fake_login
 @app.route('/')
 def route_root():
   return flask.render_template(
