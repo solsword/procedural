@@ -1,0 +1,41 @@
+{
+  "id": "ps01_debug_nums",
+  "name": "<code>DebugNums</code> Fixed Code",
+  "instructions": "",
+  "input": "5\n-4.7158\n",
+  "code": [
+"print('')",
+"print(\n    'The maximum of', intNum, 'and', floatNum, 'is',\n    max(int(intNum), float(floatNum))\n)",
+"print(floatNum, 'rounded to an integer is', round(float(floatNum)))",
+"print('The integer remainder of',  intNum, 'divided by 3 is', + int(intNum)%3)",
+"# Tests involving an integer\nintNum = input('Enter a nonnegative integer intNum: ')",
+"print('The integer you entered is ' + intNum)",
+"print('The integer quotient of', intNum, 'divided by 3 is', int(intNum)//3)",
+"print(\n    'The floating point quotient of', intNum,\n    'divided by 3 is', int(intNum)/3\n)",
+"print(floatNum, 'truncated to an integer is', int(float(floatNum)))",
+"# Tests involving a floating point number\nfloatNum = input('Enter a floating point number floatNum: ')",
+"print('')",
+"print('The number of digits in', intNum, 'is', len(intNum))",
+"print(floatNum +  ' rounded to two places is ' + str(round(float(floatNum),2)))",
+
+"print('floatNum is ' + floatNum)",
+"print('Three times intNum is', int(intNum) * 3)",
+"print(intNum, 'concatenated copies of X is', int(intNum)*'X')"
+  ],
+  "tests": [
+[ "printed(0)", "'The integer you entered is 5\\n'"],
+[ "printed(1)", "'Three times intNum is 15\\n'"],
+[ "printed(2)", "'5 concatenated copies of X is XXXXX\\n'"],
+[ "printed(3)", "'The integer remainder of 5 divided by 3 is 2\\n'"],
+[ "printed(4)", "'The integer quotient of 5 divided by 3 is 1\\n'"],
+[ "printed(5)", "'The floating point quotient of 5 divided by 3 is {}\\n'.format(5/3)"],
+[ "printed(6)", "'The number of digits in 5 is 1\\n'"],
+[ "printed(7)", "'\\n'"],
+[ "printed(8)", "'floatNum is -4.7158\\n'"],
+[ "printed(9)", "'-4.7158 rounded to two places is -4.72\\n'"],
+[ "printed(10)", "'-4.7158 truncated to an integer is -4\\n'"],
+[ "printed(11)", "'-4.7158 rounded to an integer is -5\\n'"],
+[ "printed(12)", "'\\n'"],
+[ "printed(13)", "'The maximum of 5 and -4.7158 is 5\\n'"]
+  ]
+}

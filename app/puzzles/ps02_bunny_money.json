@@ -1,0 +1,58 @@
+{
+  "id": "ps02_bunny_money",
+  "name": "<code>bunnyMoneyMosaic.py</code>",
+  "instructions": "",
+  "code": [
+"# Import '*' (i.e., everything) from cs1graphics for drawing\nfrom cs1graphics import *\n# Note: you probably also imported from cs1graphicsHelper and graphicsState for\n# debugging purposes, but they aren't necessary for the solution.\n# Import makeBunny (from bunny.py) and makeWedge (from wedge.py)\nfrom bunny import makeBunny\nfrom wedge import makeWedge",
+
+
+"bunnyWedge.add(bunny) # add bunny on top of carrot",
+"# carrot is already in correct position; its upper left corner is (0,0),\n#   which coincides with the (0,0) center of the bunnyCarrotUL layer. \nbunny.moveTo(75,120) # move bunny to correct position relative to carrot",
+"#-------------------------------------------------------------------------------\n# bunnyWedge: This is a layer with the bunny overlaid on top of a carrot (the\n# orange wedge). The reference point is the upper left corner of the wedge\n# This pattern appears in the upper left and (rotated 180 degrees) in lower \n# right corners of the bunnyMoney pattern.\n\nbunnyWedge = Layer()",
+"bunnyWedge.add(wedge) # orange wedge is the 'carrot', whose reference point\n                       # is already the upper left corner",
+
+"# Create a bunny and wedge for use below\nbunny = makeBunny()\nwedge = makeWedge()",
+
+
+"# Add a lightgreen rectangular background to bunnyCornerBill\nbillRect = Rectangle(\n    600,\n    300,\n    Point(300,150)\n    # (300,150) places the rectangle so that its upper left corner is at (0,0)\n    # in the bunnyCornerBill layer.\n)",
+"bunnyCornerBill.add(billRect)",
+"# Next place the bunnyWedge pattern in the upper left corner of bunnyCornerBill\n# The upper left corner of the bunnyWedge layer is (0,0), which conincides\n# with the default (0,0) reference point in the bunnyCornerBill layer.\n\nbunnyCornerBill.add(bunnyWedge)",
+"billRect.setFillColor('lightgreen') # *not* palegreen!",
+"#-------------------------------------------------------------------------------\n# bunnyCornerBill: This is a layer with bunnyWedge in the upper left corner\n# of a palegreen rectangle. The reference point is the upper left corner of \n# the pattern\n\nbunnyCornerBill = Layer()",
+
+
+"# Put bunnyCornerBill in the upper right \nbunnyInBothCornersBill.add(bunnyCornerBill)",
+"bunnyWedgeLR.moveTo(600,300) # Bottom left corner of lightgreen rect",
+"#-------------------------------------------------------------------------------\n# bunnyCornerBill: This is a layer with bunnyWedge in the upper left \n# and lower right corners of a palegreen rectangle. \n# The reference point is the upper left corner of the pattern\n\nbunnyInBothCornersBill = Layer()",
+"bunnyWedgeLR.rotate(180)",
+"bunnyInBothCornersBill.add(bunnyWedgeLR)",
+"# Now make a rotated-180 copy of bunnyWedge to place in the lower right\n# corner of bunnyInBothCornersBill\nbunnyWedgeLR = bunnyWedge.clone() # LR means 'lower right' ",
+
+
+"# First make the navy disc, centered at (0,0)\ndisc = Circle(75, Point(0,0)) # Point(0,0) isn't necessary; that's the default.\n                              # But nice to make it explicit",
+"miniBunnyWedgeRot180 = miniBunnyWedge.clone()\nminiBunnyWedgeRot180.rotate(180)\nbunnyPinwheel.add(miniBunnyWedgeRot180)",
+"disc.setFillColor('navy')",
+"# Create a quarter-sized clone of bunnyCarrotUL\nminiBunnyWedge = bunnyWedge.clone()",
+"miniBunnyWedgeRot90 = miniBunnyWedge.clone()\nminiBunnyWedgeRot90.rotate(90)\nbunnyPinwheel.add(miniBunnyWedgeRot90)",
+"#-------------------------------------------------------------------------------\n# bunnyPinwheel: This is a layer with four rotated copies of bunnyWedge rotated \n# inside a navy disc. The reference point is the center of the disc.\n\nbunnyPinwheel = Layer()",
+"miniBunnyWedge.scale(0.25)",
+"# Add 4 rotated copies of miniBunnyWedge to center of bunnyPinwheel layer\nbunnyPinwheel.add(miniBunnyWedge)",
+"bunnyPinwheel.add(disc)",
+"miniBunnyWedgeRot270 = miniBunnyWedge.clone()\nminiBunnyWedgeRot270.rotate(270)\nbunnyPinwheel.add(miniBunnyWedgeRot270)",
+
+"# Now add bunnyPinwheel in the center of the rectangle.\nbunnyPinwheel.moveTo(300,150)\nbunnyMoney.add(bunnyPinwheel)",
+"# Finally, add a gray rectangle in the lower right corner of bunnyMoney\n# (makes the bunnyMoney pattern asymmetric)\ngreyRect = Rectangle(\n    330,\n    70,\n    Point(165,265) # Center of bunnyMoney rectangle\n)\n\ngreyRect.setFillColor('darkgrey')\nbunnyMoney.add(greyRect)",
+"# First add bunnyInBothCornersBill\nbunnyMoney.add(bunnyInBothCornersBill)",
+"#-------------------------------------------------------------------------------\n# bunnyMoney: This is a layer with the rectangular pattern that is repeated\n# five times in the mosaic. The reference point is in the upper left\n# corner of the rectangle.\n\nbunnyMoney = Layer()",
+
+
+"# Add the full-sized bunnyMoney pattern with its upper-left corner at (0,300)\nbunnyMoney.moveTo(0,300)\nmosaic.add(bunnyMoney)\n\n# Now add four versions of bunnyMoney with the correct scalings, rotatations, \n# and positions to the mosaic",
+"# bunnyMoney in upper center of mosaic\nbunnyMoneyUC = bunnyMoney.clone()\nbunnyMoneyUC.rotate(180)\nbunnyMoneyUC.scale(0.75)\nbunnyMoneyUC.moveTo(600,225)\nmosaic.add(bunnyMoneyUC)",
+"# bunnyMoney in upper left of mosaic\nbunnyMoneyUL = bunnyMoney.clone()\nbunnyMoneyUL.rotate(270)\nbunnyMoneyUL.scale(0.5)\nbunnyMoneyUL.moveTo(0,300)\nmosaic.add(bunnyMoneyUL)",
+"# bunnyMoney on right side of mosaic\nbunnyMoneyR = bunnyMoney.clone()\nbunnyMoneyR.rotate(90)\nbunnyMoneyR.moveTo(900,0)\nmosaic.add(bunnyMoneyR)",
+"#-------------------------------------------------------------------------------\n# mosaic is the canvas for the whole picture\n\n# Create canvas for the mosaic. Make the background pink to correctly\n# color the rectangle not covered by the five bunnyMoney patterns \nmosaic = Canvas(900, 600, 'pink', 'bunnymoney')",
+"# tiny bunnyMoney in center of mosaic\nbunnyMoneyC = bunnyMoney.clone()\nbunnyMoneyC.scale(0.25)\nbunnyMoneyC.moveTo(150,225)\nmosaic.add(bunnyMoneyC)"
+  ],
+  "tests": [
+  ]
+}

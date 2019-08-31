@@ -1,0 +1,28 @@
+{
+  "id": "ps01_graphics_scene",
+  "name": "<code>graphicsScene.py</code>",
+  "instructions": "Draw two pieces of seaweed and a fish. <code>seaweed1</code> must be behind the fish and <code>seaweed2</code> must be in front of it.",
+  "code": [
+"seaweed1.setBorderWidth(7)",
+"# Import '*' (i.e., everything) from cs1graphics\nfrom cs1graphics import *",
+"lake.add(fishbody)",
+"fishbody.setFillColor('gold1')",
+"seaweed2.setBorderWidth(7)",
+"fishtail = Polygon(Point(310, 450), Point(295, 470), Point(295, 430))",
+"# Create canvas\nlake = Canvas(500, 500, 'lightskyblue', 'Lake Waban')",
+"seaweed2.setBorderColor('seagreen')",
+"lake.add(seaweed1)",
+"fishbody = Ellipse(120, 50, Point(370, 450))",
+"fisheye = Circle(3, Point(415, 445))",
+"fishtail.setFillColor('goldenrod3')",
+"lake.add(seaweed2)",
+"lake.add(fishtail)",
+"lake.add(fisheye)",
+"# seaweed2 in front of the fish (partially obscures the fish's body)\nseaweed2 = Path(\n    Point(340, 500), Point(332, 480), Point(345, 457), Point(330, 435),\n    Point(338, 415)\n)",
+"seaweed1.setBorderColor('forestgreen')",
+"fisheye.setFillColor('black')",
+"# seaweed1 behind the fish\nseaweed1 = Path(\nPoint(370, 500), Point(375, 487), Point(363, 460), Point(370, 446),\n    Point(365, 420), Point(373, 400)\n)"
+  ],
+  "tests": [
+  ]
+}

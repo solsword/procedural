@@ -1,0 +1,21 @@
+{
+  "id": "cs111",
+  "name": "CS 111 Puzzles",
+  "items": [
+		{
+			"id": "ps01",
+			"name": "Problem Set 1",
+			"items": [
+        { "load_id": "ps01_debug_nums" },
+				{ "load_id": "ps01_time_profiler" },
+				{ "load_id": "ps01_graphics_scene" }
+    },
+		{
+			"id": "ps02",
+			"name": "Problem Set 2",
+			"items": [
+				{ "load_id": "ps02_bunny_money" }
+			]
+		}
+	]
+}

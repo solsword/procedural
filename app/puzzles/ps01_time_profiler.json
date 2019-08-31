@@ -1,0 +1,33 @@
+{
+  "id": "ps01_time_profiler",
+  "name": "<code>timeProfiler.py</code>",
+  "instructions": "",
+  "input": "Test\n4\n5.2\nfreedom\n30\n6.5\n",
+  "code": [
+"# Find the maximum length of the descriptive strings\nmaxLen = max(\n    len(classString),\n    len(extraString),\n    len(freeString),\n    len(sleepString)\n)",
+
+"# PART 1: Get Input\n# Gather input from the user about time spent on different categories of\n# activities during each week. Since inputs are 'strings', convert them\n# immediately to int or float values. There should be a total of 6 questions.\n\nname = input('What is your name? ')",
+"stuffOutsideOfClassLabel = input(\n    \"What shall we call the 'everything outside of class' category? \"\n)",
+"sleepHoursPerDay = float(\n    input('How many hours per day do you sleep on average? ')\n)",
+"extraHoursPerWeek = float(\n    input(\n        \"How many hours per week do you spend on '\"\n      + stuffOutsideOfClassLabel +  \"'? \"\n    )\n)",
+"numClasses = int(input('How many classes are you taking this semester? '))",
+"classAvgTime = float(\n    input('What is the average time in class per week this semester? ' )\n)",
+
+"# Format descriptive strings listing hours for each activity\nclassString = str(round(classHoursPerWeek, 2)) + ' class hours: '\nextraString = (\n    str(round(extraHoursPerWeek, 2))\n  + ' '\n  + stuffOutsideOfClassLabel\n  + ' hours: '\n)\nfreeString  = str(round(freeHoursPerWeek, 2)) + ' free hours: '\nsleepString = str(round(sleepHoursPerWeek, 2)) + ' sleep hours: '",
+
+"# PART 2: Process data\n# Perform calculations for hours per week for each activity\nhoursPerWeek = 7 * 24",
+"sleepHoursPerWeek = sleepHoursPerDay * 7",
+"# Assume 2 hours outside class for every hour in class (2 + 1 = 3)\nclassHoursPerWeek = numClasses * classAvgTime * 3",
+"freeHoursPerWeek = (\n    hoursPerWeek\n  - (classHoursPerWeek + extraHoursPerWeek + sleepHoursPerWeek)\n)",
+
+"# PART 3: Display the output\n# Print each string followed by a histogram representing the number of hours\n# spent for each category\n\nprint('') # Print a blank line",
+"print('Weekly time profile for ' + name + ':')",
+
+"print(\n    ' ' * (maxLen - len(sleepString))\n  + sleepString\n  + 'S' * round(sleepHoursPerWeek)\n)",
+"print(\n    ' ' * (maxLen - len(freeString))\n  + freeString\n  + 'F' * round(freeHoursPerWeek)\n)",
+"print(\n    ' ' * (maxLen - len(extraString))\n  + extraString\n  + 'X' * round(extraHoursPerWeek)\n)",
+"# Use the max length to pad with spaces so that each histogram begins in the\n# same column.\nprint(\n    ' ' * (maxLen - len(classString))\n  + classString\n  + 'C' * round(classHoursPerWeek)\n)"
+  ],
+  "tests": [
+  ]
+}
