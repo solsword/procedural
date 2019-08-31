@@ -4,22 +4,22 @@
     <title>Procedural</title>
     <meta charset="utf-8"/>
     <meta name="author" content="Peter Mawhorter"/>
-    <link rel="stylesheet" href="/static/procedural.css"/>
-    <link rel="stylesheet" href="/static/lib/prism.css"/>
-    <script type="text/javascript" src="/static/brython/brython.js"></script>
-    <script type="text/javascript" src="/static/brython/brython_stdlib.js"></script>
-    <script type="text/javascript" src="/static/lib/prism.js" data-manual></script>
+    <link rel="stylesheet" href="{{url_for('static', filename='procedural.css')}}"/>
+    <link rel="stylesheet" href="{{url_for('static', filename='lib/prism.css')}}"/>
+    <script type="text/javascript" src="{{url_for('static', filename='brython/brython.js')}}"></script>
+    <script type="text/javascript" src="{{url_for('static', filename='brython/brython_stdlib.js')}}"></script>
+    <script type="text/javascript" src="{{url_for('static', filename='lib/prism.js')}}" data-manual></script>
   </head>
   <body onload="brython({debug:1, pythonpath:['/static/python_modules/']});">
     <script
      type="text/python"
-     src="/static/procedural.py"
+     src="{{url_for('static', filename='procedural.py')}}"
      id="procedural_script"
     ></script>
     {% if username %}
       You are logged in as: {{username}}
     {% else %}
-      You are not logged in. <a href="/cas/login">Click here to log in.</a>
+      You are not logged in. <a href="{{url_for('cas.login')}}">Click here to log in.</a>
     {% endif %}
     <div
      class="procedural_selector"
@@ -29,7 +29,7 @@
     >
       <div class="procedural_widget" data-submit-solutions-to="/solved">
         <div class="loading">
-          <img src="/static/loading.gif" alt=""/> Loading...
+          <img src="{{url_for('static',filename='loading.gif')}}" alt=""/> Loading...
         </div>
       </div>
     </div>
