@@ -310,8 +310,7 @@ def get_permisisons(user_id):
       print(
         "Warning: error fetching or parsing permissions for  user '{}'".format(
           user_id
-        ),
-        file=sys.stderr
+        )
       )
       return None
     finally:
@@ -331,8 +330,7 @@ def set_permissions(user_id, perm_obj):
       (
         "Warning: user permissions not set for '{}' because object couldn't "
       + "be serialized:\n{}"
-      ).format(user_id, repr(perm_obj)),
-      file=sys.stderr
+      ).format(user_id, repr(perm_obj))
     )
     return False
 
@@ -367,8 +365,7 @@ def grant_permission(user_id, action, item):
       (
         "Warning: permission {}:{} not added for '{}' because of trouble "
       + "retrieving permissions for that user."
-      ).format(action, item, user_id),
-      file=sys.stderr
+      ).format(action, item, user_id)
     )
     return False
 
@@ -390,8 +387,7 @@ def revoke_permission(user_id, action, item):
       (
         "Warning: permission {}:{} not revoked for '{}' because of trouble "
       + "retrieving permissions for that user."
-      ).format(action, item, user_id),
-      file=sys.stderr
+      ).format(action, item, user_id)
     )
     return False
 
@@ -427,8 +423,7 @@ def has_permission(user_id, action, item):
       perm_obj = json.loads(results[0][0])
     except:
       print(
-        "Warning: error parsing permissions for  user '{}'".format(user_id),
-        file=sys.stderr
+        "Warning: error parsing permissions for  user '{}'".format(user_id)
       )
       perm_obj = None
 
@@ -451,8 +446,7 @@ def set_admin(user_id, admin='True'):
   )
   if len(list(cur.fetchall())) == 0: # user doesn't exists
     print(
-      "Attempt to set admin status of non-existent user '{}'.".format(user_id),
-      file=sys.stderr
+      "Attempt to set admin status of non-existent user '{}'.".format(user_id)
     )
     return False
   else:
@@ -479,8 +473,7 @@ def add_user(user_id, is_admin='False'):
   )
   if len(list(cur.fetchall())) > 0: # user already exists
     print(
-      "Attempt to create user '{}' who already exists.".format(user_id),
-      file=sys.stderr
+      "Attempt to create user '{}' who already exists.".format(user_id)
     )
     return False
   else:

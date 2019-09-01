@@ -1692,7 +1692,7 @@ def full_test(test):
 
 def load_json(url, callback, fail_callback=None, params=None):
   """
-  Loads the given URL (a relative URL) and parses a JSON object from the
+  Loads the given URL (a server-relative URL) and parses a JSON object from the
   result. Passes the resulting object to the given callback function when the
   loading is done. If the request fails, an error message is printed and the
   fail_callback (if there is one) will be called with the request object, or
@@ -1707,12 +1707,12 @@ def load_json(url, callback, fail_callback=None, params=None):
   Note that with Chrome --allow-file-access-from-files will be necessary if not
   being hosted by a server.
   """
-  base = browser.window.location.href
-  path = '/'.join(base.split('/')[:-1])
+  loc = browser.window.location
+  base = loc.protocol + '//' + loc.host
   if url.startswith('/'):
-    dpath = path + url
+    dpath = base + url
   else:
-    dpath = path + "/" + url
+    dpath = base + "/" + url
 
   # Load asynchronously
   def catch(req):
@@ -1760,7 +1760,7 @@ def load_json(url, callback, fail_callback=None, params=None):
         ontimeout=catch
       )
   except Exception as e:
-    error("Failed to load puzzles from: '" + dpath + "'")
+    error("Failed to load JSON from: '" + dpath + "'")
     error("(XMLHTTP request raised error)")
     error(format_error(trap_exception(e)))
     if fail_callback:
