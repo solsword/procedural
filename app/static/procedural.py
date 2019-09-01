@@ -52,7 +52,7 @@ DEFAULT_PUZZLE = { # default puzzle:
 DEFAULT_INFO = {
   "id": "default_puzzles",
   "name": "Default puzzles",
-  "categories": [
+  "items": [
     {
       "id": "group1",
       "name": "Group 1",
@@ -190,13 +190,15 @@ def make_dict(jsobj, memo=None):
     return jsobj
   elif browser.window.Array.isArray(jsobj) or isinstance(jsobj, list):
     l1 = []
+    memo[id(jsobj)] = l1
     for item in jsobj:
-      l1.append(make_dict(item))
+      l1.append(make_dict(item, memo))
     return l1
   elif isinstance(jsobj, dict):
     d1 = {}
+    memo[id(jsobj)] = d1
     for k in jsobj:
-      d1[k] = make_dict(jsobj[k])
+      d1[k] = make_dict(jsobj[k], memo)
     return d1
   else:
     d1 = {}
@@ -205,7 +207,7 @@ def make_dict(jsobj, memo=None):
       prd = browser.window.Object.getOwnPropertyDescriptor(jsobj, key)
       if prd != None:
         val = prd.value
-        d1[key] = val
+        d1[key] = make_dict(val, memo)
     return d1
 
 def error(*messages):
@@ -1726,7 +1728,7 @@ def load_json(url, callback, params=None):
       # Call our callback and we're done
       callback(obj)
     else:
-      error("Failed to load JSON from: '" + dpath + "'")
+      error("Failed to load JSON from: '{}'".format(dpath))
       error("(XMLHTTP request failed with status {})".format(req.status))
       return
 
@@ -1743,7 +1745,7 @@ def load_json(url, callback, params=None):
         dpath,
         data=params,
         timeout=25,
-        oncomplete=catch
+        oncomplete=catch,
         ontimeout=catch
       )
   except Exception as e:
@@ -1770,7 +1772,7 @@ def select_handler(ev):
       hit = True
       if "items" in item: # it's a sub-category; add another selector
         sub_items = item["items"]
-        sub_items = make_dict(sub_items)
+        sub_items = sub_items
         sub_sel = create_menu_for(sub_items)
         sel_div.insertBefore(sub_sel, ev.target.nextSibling)
         sel_div.insertBefore(
@@ -1778,7 +1780,7 @@ def select_handler(ev):
           sub_sel
         )
       else: # it's a puzzle; update the widget
-        item = make_dict(item)
+        item = item
         setup_base_puzzle(sel["widget_node"], item)
 
   if not hit and which != '...':
@@ -1796,7 +1798,7 @@ def create_menu_for(items):
   """
   result = browser.document.createElement("select")
   add_class(result, "puzzle_selector")
-  result.__items__ = make_dict(items)
+  result.__items__ = items
   # default option
   dopt = browser.document.createElement("option")
   dopt.value = "..."
@@ -1858,7 +1860,7 @@ def continue_loading(info, final_continuation):
     index = indices[-1]
     if "items" in here:
       if index < len(here["items"]):
-        path.append(make_dict(here["items"][index]))
+        path.append(here["items"][index])
         indices.append(0)
       else:
         # go out one level
@@ -1905,11 +1907,11 @@ def setup_selector(node, info=None):
       # TODO: Loading icon!
       load_json(
         node.getAttribute("data-categories"),
-        lambda info: setup_selector(node, info)
+        lambda info: setup_selector(node, make_dict(info))
       ) # call ourselves but take the other branch
       return
     else: # default info:
-      info = DEFAULT_INFO
+      info = make_dict(DEFAULT_INFO)
   else:
     info = make_dict(info)
 
@@ -1943,7 +1945,7 @@ def setup_selector_definite(node, info):
   select_div.appendChild(browser.document.createTextNode("Select: "))
 
   # Selection drop-down menu:
-  primary_selector = create_menu_for(info["categories"])
+  primary_selector = create_menu_for(info["items"])
   select_div.appendChild(primary_selector)
 
   # Add our selector div to the node at the beginning:

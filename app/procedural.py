@@ -323,7 +323,7 @@ def get_permisisons(user_id):
   )
   results = list(cur.fetchall())
   if len(results) <= 0:
-    return None:
+    return None
   else:
     try:
       return json.loads(results[0][0])

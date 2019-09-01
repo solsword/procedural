@@ -9,6 +9,7 @@
         { "load_id": "ps01_debug_nums" },
 				{ "load_id": "ps01_time_profiler" },
 				{ "load_id": "ps01_graphics_scene" }
+      ]
     },
 		{
 			"id": "ps02",

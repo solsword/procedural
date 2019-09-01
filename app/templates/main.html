@@ -10,7 +10,7 @@
     <script type="text/javascript" src="{{url_for('static', filename='brython/brython_stdlib.js')}}"></script>
     <script type="text/javascript" src="{{url_for('static', filename='lib/prism.js')}}" data-manual></script>
   </head>
-  <body onload="brython({debug:1, pythonpath:['/static/python_modules/']});">
+  <body onload="brython({debug:1, pythonpath:['{{url_for('static', filename='python_modules')}}']});">
     <script
      type="text/python"
      src="{{url_for('static', filename='procedural.py')}}"
@@ -24,7 +24,7 @@
     <div
      class="procedural_selector"
      data-load-puzzles-from="/puzzle"
-     data-categories="/static/categories.json"
+     data-categories="{{url_for('static', filename='categories.json')}}"
      aria-busy="true"
      aria-live="polite"
     >
