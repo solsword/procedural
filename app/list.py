@@ -20,6 +20,20 @@ import sqlite3
 
 import procedural
 
+USAGE = """\
+list.py -h|--help
+list.py [-s|--short] [-p|--puzzles] [IDs...]
+
+Lists submissions that match one of the given user IDs (or puzzle IDs if
+-p/--puzzles is given). If -s/--short is given, it omits the actual solutions
+and puzzles and just lists user IDs, timestamps, and puzzle IDs. If no
+user/puzzle ID is given, it lists all submissions.
+"""
+
+if '-h' in sys.argv or '--help' in sys.argv:
+  print(USAGE)
+  exit()
+
 conn = procedural.get_sol_db_connection()
 
 short = False

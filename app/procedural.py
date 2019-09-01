@@ -513,10 +513,12 @@ if __name__ == "__main__":
   if not os.path.exists(SOL_DATABASE):
     conn = get_sol_db_connection()
     conn.execute(SOL_SCHEMA)
+    conn.commit()
     conn.close()
   if not os.path.exists(PERM_DATABASE):
     conn = get_perm_db_connection()
     conn.execute(PERM_SCHEMA)
+    conn.commit()
     conn.close()
   #app.run('localhost', 1947, ssl_context=('cert.pem', 'key.pem'))
   #app.run('0.0.0.0', 1947, ssl_context=('cert.pem', 'key.pem'))
