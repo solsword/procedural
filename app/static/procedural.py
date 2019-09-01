@@ -1690,11 +1690,13 @@ def full_test(test):
     )
   return result
 
-def load_json(url, callback, params=None):
+def load_json(url, callback, fail_callback=None, params=None):
   """
   Loads the given URL (a relative URL) and parses a JSON object from the
   result. Passes the resulting object to the given callback function when the
-  loading is done.
+  loading is done. If the request fails, an error message is printed and the
+  fail_callback (if there is one) will be called with the request object, or
+  with a trapped exception object.
 
   If params are not None, POST is used and the given parameters are included in
   the request.
@@ -1724,12 +1726,21 @@ def load_json(url, callback, params=None):
       except Exception as e:
         error("Malformed JSON from '{}':\n{}".format(dpath, req.text))
         error(format_error(trap_exception(e)))
+        if fail_callback:
+          fail_callback(req)
         return
       # Call our callback and we're done
       callback(obj)
+    elif req.status == 403:
+      error("Not allowed to load JSON from: '{}'".format(dpath))
+      if fail_callback:
+        fail_callback(req)
+      return
     else:
       error("Failed to load JSON from: '{}'".format(dpath))
       error("(XMLHTTP request failed with status {})".format(req.status))
+      if fail_callback:
+        fail_callback(req)
       return
 
   try:
@@ -1752,6 +1763,8 @@ def load_json(url, callback, params=None):
     error("Failed to load puzzles from: '" + dpath + "'")
     error("(XMLHTTP request raised error)")
     error(format_error(trap_exception(e)))
+    if fail_callback:
+      fail_callback(trap_exception(e))
 
 def select_handler(ev):
   """
@@ -1807,8 +1820,18 @@ def create_menu_for(items):
   # one option per item
   for item in result.__items__:
     opt = browser.document.createElement("option")
-    opt.value = item["id"]
-    opt.innerHTML = item["name"]
+    if "load_error" in item:
+      opt.value = item["attempted_id"]
+      opt.innerHTML = item["attempted_id"] + " [not available]"
+      opt.disabled = True
+      if item.get("error_unexpected", True):
+        add_class(opt, "unexpected_error")
+        opt.title = item.get("error_explanation", "unknown reason")
+      else:
+        opt.title = "not available"
+    else:
+      opt.value = item["id"]
+      opt.innerHTML = item["name"]
     result.appendChild(opt)
   result.addEventListener("change", select_handler)
   return result
@@ -1822,6 +1845,7 @@ def load_puzzle(url, puzzle, callback):
   load_json(
     url,
     lambda loaded: receive_puzzle(puzzle, loaded, callback),
+    fail_callback = lambda req: inform_puzzle_issue(puzzle, req, callback),
     params={ "id": puzzle["load_id"] }
   )
 
@@ -1833,6 +1857,23 @@ def receive_puzzle(puzzle, loaded, callback):
   puzzle.update(make_dict(loaded))
   puzzle["loaded_id"] = puzzle["load_id"]
   del puzzle["load_id"] # so we don't try to load this puzzle again
+  callback(puzzle)
+
+def inform_puzzle_issue(puzzle, request, callback):
+  """
+  Updates a puzzle to reflect an error during loading.
+  """
+  puzzle["load_error"] = request
+  if request.status == 403:
+    puzzle["error_explanation"] = "Not allowed to access this puzzle."
+    puzzle["error_unexpected"] = False
+  else:
+    puzzle["error_explanation"] = "Unable to load puzzle:\n{}".format(
+      reason_for(request.status)
+    )
+    puzzle["error_unexpected"] = True
+  puzzle["attempted_id"] = puzzle["load_id"]
+  del puzzle["load_id"] # don't try to load this again
   callback(puzzle)
 
 def ensure_fully_loaded(info, callback):

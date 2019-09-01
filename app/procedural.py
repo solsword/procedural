@@ -135,10 +135,10 @@ def admin_only(f):
   def wrapped(*args, **kwargs):
     username = flask.session.get("CAS_USERNAME", None)
     if username == None:
-      return (403, "Unregistered user.")
+      return ("Unregistered user.", 403)
     else:
       if not is_admin(username):
-        return (403, "You must be an administrator to access this page.")
+        return ("You must be an administrator to access this page.", 403)
       else:
         return f(*args, **kwargs)
 
@@ -193,13 +193,17 @@ def route_puzzle():
     }
   else:
     id = werkzeug.utils.secure_filename(id)
-    target = os.path.join("puzzles", id + ".json")
-    if os.path.exists(target):
-      with open(target, 'r') as fin:
-        puzzle = fin.read()
-      return puzzle
+    user = flask.session.get("CAS_USERNAME", None)
+    if has_permission(user, "view_puzzle", id):
+      target = os.path.join("puzzles", id + ".json")
+      if os.path.exists(target):
+        with open(target, 'r') as fin:
+          puzzle = fin.read()
+        return puzzle
+      else:
+        return ("Puzzle '{}' does not exist.".format(id), 404)
     else:
-      return (404, "Puzzle '{}' does not exist.".format(id))
+      return ("You don't have permissions to view puzzle '{}'.".format(id), 403)
 
 @app.route("/solved", methods=["POST"])
 @returnJSON
@@ -373,6 +377,62 @@ def set_permisisons(user_id, perm_obj):
     )
   conn.close()
 
+def add_permission(user_id, action, item):
+  """
+  Adds permission for the given user to take the given action.
+  """
+  perms = get_permisisons(user_id)
+  if perms == None:
+    print(
+      (
+        "Warning: permission {}:{} not added for '{}' because of trouble "
+      + "retrieving permissions for that user."
+      ).format(action, item, user_id),
+      file=sys.stderr
+    )
+    return
+
+  if action not in perms:
+    perms[action] = { item: True }
+  else:
+    perms[action][item] = True
+
+  # Update permissions object in the database
+  set_permisisons(user_id, perms)
+
+def has_permission(user_id, action, item):
+  """
+  Retrieves a user's permissions object from the permissions database, and
+  checks whether the user has permission to perform the given action on the
+  given item. Returns True or False. Admin accounts have permission to do
+  everything, and if the user_id is None, it always returns False.
+  """
+  if user_id == None:
+    return False
+  conn = get_perm_db_connection()
+  cur = conn.execute(
+    "SELECT permissions, is_admin FROM permissions WHERE username = ?;",
+    (user_id,)
+  )
+  results = list(cur.fetchall())
+  if len(results) < 1:
+    return False
+  else:
+    is_admin = results[0][1] == "True"
+    try:
+      perm_obj = json.loads(results[0][0])
+    except:
+      print(
+        "Warning: error parsing permissions for  user '{}'".format(user_id),
+        file=sys.stderr
+      )
+      perm_obj = None
+
+    return (
+      is_admin # can do anything
+   or (action in perm_obj and perm_obj[action].get(item, False)) # check
+    )
+
 def set_admin(user_id, admin='True'):
   """
   Sets the 'admin' property of the given user, by default making them an admin.
@@ -416,7 +476,7 @@ def add_user(user_id, is_admin='False'):
       file=sys.stderr
     )
   else:
-    set_permisisons(user_id, {}) # creates user automatically
+    set_permissions(user_id, {}) # creates user automatically
     if is_admin != 'False': # that's the default in set_permissions
       set_admin(user_id, is_admin)
 

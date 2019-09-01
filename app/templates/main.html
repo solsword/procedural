@@ -19,7 +19,7 @@
     {% if username %}
       You are logged in as: {{username}}
     {% else %}
-      You are not logged in. <a href="{{url_for('cas.login')}}">Click here to log in.</a>
+      You are not logged in. Some puzzles may be unavailable. <a href="{{url_for('cas.login')}}">Click here to log in.</a>
     {% endif %}
     <div
      class="procedural_selector"
