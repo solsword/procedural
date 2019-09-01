@@ -18,9 +18,9 @@ import csv
 import json
 import sqlite3
 
-conn = sqlite3.connect("solutions.sqlite3")
-conn.row_factory = sqlite3.Row # return results as Row objects
+import procedural
 
+conn = procedural.get_sol_db_connection()
 
 short = False
 if '-s' in sys.argv or '--short' in sys.argv:

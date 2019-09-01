@@ -68,12 +68,9 @@ CREATE TABLE permissions (
 app = flask.Flask(__name__)
 #flask_talisman.Talisman(app, content_security_policy=CSP) # force HTTPS
 cas = flask_cas.CAS(app, '/cas') # enable CAS
-# Wellesley College login config:
-app.config["CAS_SERVER"] = "https://login.wellesley.edu:443"
-app.config["CAS_LOGIN_ROUTE"] = "/module.php/casserver/cas.php/login"
-app.config["CAS_LOGOUT_ROUTE"] = "/module.php/casserver/cas.php/logout"
-app.config["CAS_VALIDATE_ROUTE"] = "/module.php/casserver/serviceValidate.php"
-app.config["CAS_AFTER_LOGIN"] = "route_root"
+
+app.config.from_object('config')
+app.config["DEBUG"] = False
 
 # Set secret key from secret file:
 with open("secret", 'rb') as fin:
@@ -88,27 +85,6 @@ with open("secret", 'rb') as fin:
 #    url = flask.request.url.replace('http://', 'https://', 1)
 #    code = 301
 #    return flask.redirect(url, code=code)
-
-#------------#
-# Fake Login #
-#------------#
-
-def fake_login(f):
-  def wrapped(*args, **kwargs):
-    if 'CAS_USERNAME' not in flask.session:
-      flask.flash("You must log in first.")
-      return flask.redirect(
-        flask.url_for("route_login", next=flask.request.url)
-      )
-    else:
-      return f(*args, **kwargs)
-  return wrapped
-
-@app.route('/login')
-def route_login():
-  next = flask.request.args.get("next", flask.url_for("route_root"))
-  flask.session["CAS_USERNAME"] = "LOGGED IN"
-  return flask.redirect(next)
 
 #-------------------#
 # Custom Decorators #
@@ -149,9 +125,7 @@ def admin_only(f):
 # Server Routes #
 #---------------#
 
-# TODO: real login!
 @flask_cas.login_required
-#@fake_login
 @app.route('/')
 def route_root():
   return flask.render_template(
@@ -272,6 +246,7 @@ def record_solution(username, puzzle, solution):
   )
   conn.commit()
   conn.close()
+  return True
 
 def all_solutions_by(username):
   """
@@ -342,10 +317,11 @@ def get_permisisons(user_id):
     finally:
       conn.close()
 
-def set_permisisons(user_id, perm_obj):
+def set_permissions(user_id, perm_obj):
   """
   Resets a user's permissions entirely. Adds a non-admin entry to the
-  permissions database if necessary.
+  permissions database if necessary. Returns True if it succeeds or False if it
+  fails.
   """
 
   try:
@@ -358,7 +334,7 @@ def set_permisisons(user_id, perm_obj):
       ).format(user_id, repr(perm_obj)),
       file=sys.stderr
     )
-    return
+    return False
 
   conn = get_perm_db_connection()
   cur = conn.execute(
@@ -370,16 +346,20 @@ def set_permisisons(user_id, perm_obj):
       "UPDATE permissions SET permissions = ? WHERE username = ?;",
       (perm_string, user_id,)
     )
+    conn.commit()
   else: # new user
     conn.execute(
       "INSERT INTO permissions VALUES (?, ?, ?);",
       (user_id, 'False', perm_string)
     )
+    conn.commit()
   conn.close()
+  return True
 
-def add_permission(user_id, action, item):
+def grant_permission(user_id, action, item):
   """
-  Adds permission for the given user to take the given action.
+  Adds permission for the given user to take the given action. Returns True if
+  it succeeds and False if it fails.
   """
   perms = get_permisisons(user_id)
   if perms == None:
@@ -390,7 +370,7 @@ def add_permission(user_id, action, item):
       ).format(action, item, user_id),
       file=sys.stderr
     )
-    return
+    return False
 
   if action not in perms:
     perms[action] = { item: True }
@@ -398,7 +378,31 @@ def add_permission(user_id, action, item):
     perms[action][item] = True
 
   # Update permissions object in the database
-  set_permisisons(user_id, perms)
+  return set_permissions(user_id, perms)
+
+def revoke_permission(user_id, action, item):
+  """
+  Revokes permission for the given user to take the given action.
+  """
+  perms = get_permisisons(user_id)
+  if perms == None:
+    print(
+      (
+        "Warning: permission {}:{} not revoked for '{}' because of trouble "
+      + "retrieving permissions for that user."
+      ).format(action, item, user_id),
+      file=sys.stderr
+    )
+    return False
+
+  if action not in perms:
+    return # already didn't have it
+  else:
+    del perms[action][item]
+
+  # Update permissions object in the database
+  return set_permissions(user_id, perms)
+
 
 def has_permission(user_id, action, item):
   """
@@ -437,7 +441,7 @@ def set_admin(user_id, admin='True'):
   """
   Sets the 'admin' property of the given user, by default making them an admin.
   Any value besides 'True' will be treated as a regular user. Prints a warning
-  message and does nothing if the given user doesn't already exist.
+  message and returns False if the given user doesn't already exist.
   """
   conn = get_perm_db_connection()
   # Check if the user already exists: 
@@ -450,18 +454,21 @@ def set_admin(user_id, admin='True'):
       "Attempt to set admin status of non-existent user '{}'.".format(user_id),
       file=sys.stderr
     )
+    return False
   else:
     conn.execute(
       "UPDATE permissions SET is_admin = ? WHERE username = ?;",
       (admin, user_id)
     )
+    conn.commit()
 
   conn.close()
+  return True
 
 def add_user(user_id, is_admin='False'):
   """
   Adds the given user to the permissions database. Set is_admin to the string
-  'True' to make the user an administrator. Prints a warning and does nothing
+  'True' to make the user an administrator. Prints a warning and returns False
   if the user already exists.
   """
   conn = get_perm_db_connection()
@@ -475,12 +482,18 @@ def add_user(user_id, is_admin='False'):
       "Attempt to create user '{}' who already exists.".format(user_id),
       file=sys.stderr
     )
+    return False
   else:
-    set_permissions(user_id, {}) # creates user automatically
+    if not set_permissions(user_id, {}): # creates user automatically
+      conn.close()
+      return False
     if is_admin != 'False': # that's the default in set_permissions
-      set_admin(user_id, is_admin)
+      if not set_admin(user_id, is_admin):
+        conn.close()
+        return False
 
   conn.close()
+  return True
 
 def get_sol_db_connection():
   """
@@ -512,7 +525,6 @@ if __name__ == "__main__":
     conn = get_perm_db_connection()
     conn.execute(PERM_SCHEMA)
     conn.close()
-  #app.debug = True
-  #app.run('localhost', 1942, ssl_context=('cert.pem', 'key.pem'))
+  #app.run('localhost', 1947, ssl_context=('cert.pem', 'key.pem'))
   #app.run('0.0.0.0', 1947, ssl_context=('cert.pem', 'key.pem'))
   app.run('localhost', 1947)

@@ -23,12 +23,12 @@
     {% endif %}
     <div
      class="procedural_selector"
-     data-load-puzzles-from="/puzzle"
+     data-load-puzzles-from="{{url_for('route_puzzle')}}"
      data-categories="{{url_for('static', filename='categories.json')}}"
      aria-busy="true"
      aria-live="polite"
     >
-      <div class="procedural_widget" data-submit-solutions-to="/solved">
+    <div class="procedural_widget" data-submit-solutions-to="{{url_for('route_solved')}}">
         <div class="loading">
           <img src="{{url_for('static',filename='loading.gif')}}" alt=""/> Loading...
         </div>
