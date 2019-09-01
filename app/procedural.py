@@ -167,9 +167,12 @@ def route_puzzle():
     }
   else:
     id = werkzeug.utils.secure_filename(id)
+    if '.' in id:
+      return ("Invalid puzzle ID: '{}'".format(id), 400)
     user = flask.session.get("CAS_USERNAME", None)
     if has_permission(user, "view_puzzle", id):
-      target = os.path.join("puzzles", id + ".json")
+      bits = id.split(':')
+      target = os.path.join("puzzles", *bits) + ".json"
       if os.path.exists(target):
         with open(target, 'r') as fin:
           puzzle = fin.read()
@@ -407,30 +410,48 @@ def has_permission(user_id, action, item):
   given item. Returns True or False. Admin accounts have permission to do
   everything, and if the user_id is None, it always returns False.
   """
-  if user_id == None:
-    return False
   conn = get_perm_db_connection()
+  if user_id != None:
+    cur = conn.execute(
+      "SELECT permissions, is_admin FROM permissions WHERE username = ?;",
+      (user_id,)
+    )
+    results = list(cur.fetchall())
+    if len(results) >= 1:
+      is_admin = results[0][1] == "True"
+      try:
+        perm_obj = json.loads(results[0][0])
+      except:
+        print(
+          "Warning: error parsing permissions for user '{}'".format(user_id)
+        )
+        perm_obj = None
+  
+      if (
+        is_admin # can do anything
+     or (perm_obj and action in perm_obj and perm_obj[action].get(item, False))
+      ):
+        return True
+  
+  # If we fall out, check global permissions
   cur = conn.execute(
-    "SELECT permissions, is_admin FROM permissions WHERE username = ?;",
-    (user_id,)
+    'SELECT permissions FROM permissions WHERE username = "__all__";'
   )
   results = list(cur.fetchall())
-  if len(results) < 1:
-    return False
-  else:
-    is_admin = results[0][1] == "True"
+  if len(results) > 0:
     try:
-      perm_obj = json.loads(results[0][0])
+      perm_obj = json.load(results[0][0])
     except:
-      print(
-        "Warning: error parsing permissions for  user '{}'".format(user_id)
-      )
+      print("Warning: error parsing permissions for '__all__'")
       perm_obj = None
 
     return (
-      is_admin # can do anything
-   or (action in perm_obj and perm_obj[action].get(item, False)) # check
+      perm_obj
+  and action in perm_obj
+  and perm_obj[action].get(item, False)
     )
+
+  return False
 
 def set_admin(user_id, admin='True'):
   """

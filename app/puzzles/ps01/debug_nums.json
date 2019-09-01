@@ -1,5 +1,5 @@
 {
-  "id": "ps01_debug_nums",
+  "id": "ps01:debug_nums",
   "name": "<code>DebugNums</code> Fixed Code",
   "instructions": "",
   "input": "5\n-4.7158\n",

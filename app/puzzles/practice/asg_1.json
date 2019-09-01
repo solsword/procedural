@@ -1,0 +1,16 @@
+{
+  "id": "practice:asg_1",
+  "name": "Assignment Practice 1",
+  "instructions": "",
+  "code": [
+    "a = 1",
+    "b = a",
+    "a = 3",
+    "c = b + 4",
+  ],
+  "tests": [
+    [ "a", "3" ],
+    [ "b", "1" ],
+    [ "c", "5" ],
+  ]
+}
