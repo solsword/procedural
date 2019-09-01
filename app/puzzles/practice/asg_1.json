@@ -1,16 +1,15 @@
 {
-  "id": "practice:asg_1",
+  "id": "practice-asg_1",
   "name": "Assignment Practice 1",
-  "instructions": "",
   "code": [
-    "a = 1",
-    "b = a",
     "a = 3",
+    "a = 1",
     "c = b + 4",
+    "b = a"
   ],
   "tests": [
     [ "a", "3" ],
     [ "b", "1" ],
-    [ "c", "5" ],
+    [ "c", "5" ]
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "id": "ps01:graphics_scene",
+  "id": "ps01-graphics_scene",
   "name": "<code>graphicsScene.py</code>",
   "instructions": "Draw two pieces of seaweed and a fish. <code>seaweed1</code> must be behind the fish and <code>seaweed2</code> must be in front of it.",
   "code": [

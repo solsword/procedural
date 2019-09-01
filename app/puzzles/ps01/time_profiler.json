@@ -1,5 +1,5 @@
 {
-  "id": "ps01:time_profiler",
+  "id": "ps01-time_profiler",
   "name": "<code>timeProfiler.py</code>",
   "instructions": "",
   "input": "Test\n4\n5.2\nfreedom\n30\n6.5\n",

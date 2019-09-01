@@ -6,24 +6,24 @@
       "id": "practice",
       "name": "Practice Problems",
       "items": [
-        { "load_id": "practice:asg_1" },
-        { "load_id": "practice:asg_2" }
+        { "load_id": "practice-asg_1" },
+        { "load_id": "practice-asg_2" }
       ]
     },
     {
       "id": "ps01",
       "name": "Problem Set 1",
       "items": [
-        { "load_id": "ps01:debug_nums" },
-        { "load_id": "ps01:time_profiler" },
-        { "load_id": "ps01:graphics_scene" }
+        { "load_id": "ps01-debug_nums" },
+        { "load_id": "ps01-time_profiler" },
+        { "load_id": "ps01-graphics_scene" }
       ]
     },
     {
       "id": "ps02",
       "name": "Problem Set 2",
       "items": [
-        { "load_id": "ps02:bunny_money" }
+        { "load_id": "ps02-bunny_money" }
       ]
     }
   ]

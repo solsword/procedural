@@ -310,6 +310,7 @@
   background-color: #ddd;
   border-radius: 4pt;
   padding: 4pt;
+  margin-bottom: 8pt;
 }
 
 .procedural_widget .submission_status.active {

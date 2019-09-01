@@ -171,7 +171,7 @@ def route_puzzle():
       return ("Invalid puzzle ID: '{}'".format(id), 400)
     user = flask.session.get("CAS_USERNAME", None)
     if has_permission(user, "view_puzzle", id):
-      bits = id.split(':')
+      bits = id.split('-')
       target = os.path.join("puzzles", *bits) + ".json"
       if os.path.exists(target):
         with open(target, 'r') as fin:
@@ -440,13 +440,17 @@ def has_permission(user_id, action, item):
   results = list(cur.fetchall())
   if len(results) > 0:
     try:
-      perm_obj = json.load(results[0][0])
+      perm_obj = json.loads(results[0][0])
     except:
-      print("Warning: error parsing permissions for '__all__'")
+      print(
+        "Warning: error parsing permissions for '__all__':\n{}".format(
+          results[0][0]
+        )
+      )
       perm_obj = None
 
     return (
-      perm_obj
+      perm_obj != None
   and action in perm_obj
   and perm_obj[action].get(item, False)
     )

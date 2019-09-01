@@ -1310,11 +1310,15 @@ def feedback_handler(widget):
     if failed:
       remove_class(status_div, "active", "succeeded")
       add_class(status_div, "failed")
+      if reason == "not logged in":
+        remedy = "Use the link at the top of the page to log in."
+      else:
+        remedy = "Try checking your solution again?"
       status_div.innerHTML = (
-        "Failed to upload solution! Reason: {}. Try checking your solution "
-      + "again?"
+        "Failed to upload solution! Reason: {}. {}"
       ).format(
-        reason
+        reason,
+        remedy
       )
     else:
       remove_class(status_div, "active", "failed")
