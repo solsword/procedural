@@ -315,6 +315,9 @@ def drag_start(ev):
   DRAGGED = ev.target
   add_class(DRAGGED, "dragging")
   DRAGGED.setAttribute("aria-dragged", "true")
+  ev.dataTransfer.setData('application/x-moz-node', ev.target)
+  ev.dataTransfer.setData('text/html', ev.target.innerHTML)
+  ev.dataTransfer.setData('text/plain', ev.target.__code__)
   # Set aria-dropeffect on all valid targets:
   widget = my_widget(DRAGGED)
   wnode = widget["node"]
@@ -329,7 +332,7 @@ def drag_start(ev):
     item.setAttribute("aria-dropeffect", "move")
   log("HE")
   # TODO Why don't the other drag events fire?!?
-  return False
+  #return False
 
 def drag_end(ev):
   """
@@ -420,6 +423,7 @@ def drag_drop(ev):
   """
   global DRAGGED
   log("DRAG_DROP")
+  ev.preventDefault()
 
   # Remove aria-dropeffect from all targets:
   widget = my_widget(DRAGGED)
@@ -435,7 +439,6 @@ def drag_drop(ev):
     item.removeAttribute("aria-dropeffect")
 
   if not same_widget(ev.target, DRAGGED):
-    ev.preventDefault()
     return False
   my_block = my_code_block(ev.target)
   if has_class(ev.target, "code_slot") or my_block != None:
@@ -1558,6 +1561,7 @@ def setup_base_puzzle(node, puzzle):
     # tests div
     w["test_div"] = browser.document.createElement("details")
     add_class(w["test_div"], "tests")
+    w["test_div"].setAttribute("open", 'true')
 
     # We've got tests but they need to be hidden
     w["test_indicator"] = browser.document.createElement("summary")
@@ -1607,22 +1611,6 @@ def setup_base_puzzle(node, puzzle):
       browser.window.Prism.highlightElement(texpr)
       tnode.appendChild(texpr)
 
-      # Value label
-      tval_label = browser.document.createElement("span")
-      add_class(tval_label, "field_label")
-      tval_label.innerText = "Value:"
-      tnode.appendChild(tval_label)
-
-      # Value of the expression
-      tval = browser.document.createElement("code")
-      add_class(tval, "test_value", "test_code")
-      tval.innerText = "?"
-      if "expect_error" in test:
-        tval.__code__ = test["expect_error"]
-      else:
-        tval.__code__ = test["expected"]
-      tnode.appendChild(tval)
-
       # Expected label
       texp_label = browser.document.createElement("span")
       add_class(texp_label, "field_label")
@@ -1640,6 +1628,22 @@ def setup_base_puzzle(node, puzzle):
         texp.innerText = test["expected"]
         texp.__code__ = test["expected"]
       tnode.appendChild(texp)
+
+      # Value label
+      tval_label = browser.document.createElement("span")
+      add_class(tval_label, "field_label")
+      tval_label.innerText = "Value:"
+      tnode.appendChild(tval_label)
+
+      # Value of the expression
+      tval = browser.document.createElement("code")
+      add_class(tval, "test_value", "test_code")
+      tval.innerText = "?"
+      if "expect_error" in test:
+        tval.__code__ = test["expect_error"]
+      else:
+        tval.__code__ = test["expected"]
+      tnode.appendChild(tval)
 
       w["test_div"].appendChild(tnode)
 

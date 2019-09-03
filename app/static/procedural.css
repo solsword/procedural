@@ -124,11 +124,13 @@
 }
 .procedural_widget .test_feedback .test_label + .field_label { grid-column: 3; }
 .procedural_widget .test_feedback .test_expr + .field_label { grid-column: 4; }
-.procedural_widget .test_feedback .test_value + .field_label { grid-column: 5; }
+.procedural_widget .test_feedback .test_expected + .field_label {
+  grid-column: 5;
+}
 .procedural_widget .test_feedback .field_label { grid-row: 1; }
 .procedural_widget .test_feedback .test_expr { grid-column: 3; }
-.procedural_widget .test_feedback .test_value { grid-column: 4; }
-.procedural_widget .test_feedback .test_expected { grid-column: 5; }
+.procedural_widget .test_feedback .test_expected { grid-column: 4; }
+.procedural_widget .test_feedback .test_value { grid-column: 5; }
 
 .procedural_widget .test_feedback.hidden {
   display: none;
@@ -224,6 +226,7 @@
   color: #800;
   font-weight: bold;
   padding: 4pt;
+  white-space: normal;
 }
 
 .procedural_widget .error.expected {
