@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 perms.py
 
@@ -43,8 +43,8 @@ def fail(msg=None):
   Prints a message (optional), then usage, and then exit with an error.
   """
   if msg:
-    print(msg, file=sys.stderr)
-  print(USAGE, file=sys.stderr)
+    sys.stderr.write(msg + '\n')
+  sys.stderr.write(USAGE)
   exit(1)
 
 # Print usage and exit without an error:

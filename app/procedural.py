@@ -304,6 +304,7 @@ def get_permisisons(user_id):
     (user_id,)
   )
   results = list(cur.fetchall())
+  conn.close()
   if len(results) <= 0:
     return None
   else:
@@ -316,8 +317,6 @@ def get_permisisons(user_id):
         )
       )
       return None
-    finally:
-      conn.close()
 
 def set_permissions(user_id, perm_obj):
   """
@@ -410,13 +409,14 @@ def has_permission(user_id, action, item):
   given item. Returns True or False. Admin accounts have permission to do
   everything, and if the user_id is None, it always returns False.
   """
-  conn = get_perm_db_connection()
   if user_id != None:
+    conn = get_perm_db_connection()
     cur = conn.execute(
       "SELECT permissions, is_admin FROM permissions WHERE username = ?;",
       (user_id,)
     )
     results = list(cur.fetchall())
+    conn.close()
     if len(results) >= 1:
       is_admin = results[0][1] == "True"
       try:
@@ -434,10 +434,12 @@ def has_permission(user_id, action, item):
         return True
   
   # If we fall out, check global permissions
+  conn = get_perm_db_connection()
   cur = conn.execute(
     'SELECT permissions FROM permissions WHERE username = "__all__";'
   )
   results = list(cur.fetchall())
+  conn.close()
   if len(results) > 0:
     try:
       perm_obj = json.loads(results[0][0])
@@ -473,6 +475,7 @@ def set_admin(user_id, admin='True'):
     print(
       "Attempt to set admin status of non-existent user '{}'.".format(user_id)
     )
+    conn.close()
     return False
   else:
     conn.execute(
@@ -496,21 +499,20 @@ def add_user(user_id, is_admin='False'):
     "SELECT * FROM permissions WHERE username = ?;",
     (user_id,)
   )
-  if len(list(cur.fetchall())) > 0: # user already exists
+  results = list(cur.fetchall())
+  conn.close()
+  if len(results) > 0: # user already exists
     print(
       "Attempt to create user '{}' who already exists.".format(user_id)
     )
     return False
   else:
     if not set_permissions(user_id, {}): # creates user automatically
-      conn.close()
       return False
     if is_admin != 'False': # that's the default in set_permissions
       if not set_admin(user_id, is_admin):
-        conn.close()
         return False
 
-  conn.close()
   return True
 
 def get_sol_db_connection():
