@@ -524,6 +524,22 @@ def add_code_block_to_bucket(bucket, code):
   browser.window.Prism.highlightElement(codeblock)
   bucket.appendChild(codeblock)
 
+def add_given_block_to_bucket(bucket, code):
+  """
+  Works like add_code_block_to_bucket, but marks the block as a given block,
+  and prevents it from being dragged.
+  """
+  codeblock = browser.document.createElement("code")
+  add_class(codeblock, "code_block", "given")
+  add_class(codeblock, "language-python")
+  codeblock.__code__ = code
+  codeblock.innerHTML = code
+  # Note: this must be innerHTML, not innerText! (otherwise line breaks get
+  # eaten)
+  browser.window.Prism.highlightElement(codeblock)
+  bucket.appendChild(codeblock)
+
+
 def add_empty_slot_to_bucket(bucket):
   """
   Adds an empty slot to a code bucket (should be a DOM element with class
@@ -725,12 +741,21 @@ def get_code_string(bucket):
   code = code[:-1] # remove trailing newline
   return code
 
+def get_code_list(bucket):
+  """
+  Gets the lines of code from a bucket as a list of strings instead of as a
+  single block of code.
+  """
+  blocks = bucket.querySelectorAll(".code_block")
+  return [block.__code__ for block in blocks]
+
 def eval_button_handler(ev):
   """
   Click handler for the evaluate button of a puzzle. Evaluates the code, runs
   the tests, and reports results by updating test statuses and attaching error
   messages.
   """
+  # TODO: url_for the loading GIF!
   ev.target.innerHTML = (
     "<img src='/static/loading.gif' alt=''>Checking Solution..."
   )
@@ -789,6 +814,42 @@ def eval_button_handler(ev):
   # Finally re-enable the button
   ev.target.innerHTML = "Check Solution"
   ev.target.disabled = False
+
+def dl_button_handler(ev):
+  """
+  Click handler for the download button of a puzzle. Bundles up the current
+  state of the puzzle into a .json file that can be submitted separately.
+  """
+  widget = my_widget(ev.target)
+  puzzle = widget["puzzle"]
+  src_code = get_code_list(widget["source_bucket"])
+  if widget.get("solved"):
+    soln_code = widget["last_solution"]
+  else:
+    soln_code = get_code_string(widget["soln_bucket"])
+    # Prompt user to confirm download of non-solution
+    if not browser.window.confirm(
+      "This puzzle has not been solved. Are you sure you want to download the "
+    + "current configuration?"
+    ):
+      return
+  obj = {
+    "puzzle": puzzle["id"],
+    "source": src_code,
+    "solution": soln_code
+  }
+  result = json.dumps(obj, indent=2, separators=(',', ': '))
+  dla = browser.document.createElement('a')
+  dla.setAttribute(
+    "href",
+    "data:text/json;charset=utf-8," + browser.window.encodeURIComponent(result)
+  )
+  dla.setAttribute("download", puzzle["id"] + "-solution.json")
+  dla.style.display = "none"
+  browser.document.body.appendChild(dla)
+  dla.click()
+  browser.document.body.removeChild(dla)
+
 
 def attach_error_message(bucket, error_obj, expected=False):
   """
@@ -1063,7 +1124,7 @@ def report_test_results(widget, results, error_obj=None, pretest_error=None):
   """
   ind = widget["test_indicator"]
   soln_blocks = list(widget["soln_bucket"].querySelectorAll(".code_block"))
-  solution = [block.__code__ for block in soln_blocks]
+  solution = get_code_list(widget["soln_bucket"])
   if has_class(ind, "boolean"):
     # Widget has no tests; success is an arrangement of all blocks that doesn't
     # cause any errors.
@@ -1497,7 +1558,12 @@ def setup_base_puzzle(node, puzzle):
   if isinstance(code_blocks, str):
     code_blocks = blocks_from_lines(code_blocks)
 
+  given_blocks = puzzle["given"]
+  if isinstance(given_blocks, str):
+    given_blocks = blocks_from_lines(given_blocks)
+
   w["code_blocks"] = code_blocks
+  w["given_blocks"] = given_blocks
 
   # submission status div
   w["submission_status"] = browser.document.createElement("div")
@@ -1548,14 +1614,24 @@ def setup_base_puzzle(node, puzzle):
     "Drop code here (or below) to add it to your solution."
   )
 
-  # Create evaluate button in the empty slot:
+  # Add each given block to our soln div:
+  for block in given_blocks:
+    add_given_block_to_bucket(w["soln_bucket"], block)
+
+  # Create evaluate button in the instructions
   eb = browser.document.createElement("button")
   add_class(eb, "eval_button")
   eb.innerText = "Check Solution"
   eb.__bucket__ = w["soln_bucket"]
   eb.addEventListener("click", eval_button_handler)
-  #eslot.appendChild(eb)
-  eslot.insertBefore(eb, eslot.firstChild)
+  w["instructions"].insertBefore(eb, w["instructions"].firstChild)
+
+  # Create download button in the instructions
+  db = browser.document.createElement("button")
+  add_class(db, "dl_button")
+  db.innerText = "Download Solution"
+  db.addEventListener("click", dl_button_handler)
+  w["instructions"].insertBefore(db, w["instructions"].firstChild.nextSibling)
 
   if "tests" in puzzle:
     # tests div
@@ -1789,7 +1865,7 @@ def select_handler(ev):
 
   hit = False
   for item in items:
-    if item["id"] == which:
+    if "id" in item and item["id"] == which:
       hit = True
       if "items" in item: # it's a sub-category; add another selector
         sub_items = item["items"]

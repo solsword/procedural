@@ -58,10 +58,20 @@
 }
 
 
-.procedural_widget .code_bucket .eval_button {
-  /* position at bottom-right always */
+.procedural_widget .eval_button {
   -webkit-appearance: button;
-  font-size: larger;
+  float: right;
+  font-size: 14pt;
+  border-radius: 4pt;
+  margin: 0pt 4pt 0pt 4pt;
+  float: right;
+}
+
+.procedural_widget .dl_button {
+  -webkit-appearance: button;
+  float: right;
+  clear: right;
+  font-size: 14pt;
   border-radius: 4pt;
   margin: 0pt 4pt 0pt 4pt;
   float: right;
@@ -88,6 +98,12 @@
 .procedural_widget .code_block {
   border-color: #113388;
   cursor: move;
+}
+
+.procedural_widget .code_block.given {
+  border-color: #777;
+  background-color: #eee;
+  cursor: default;
 }
 
 .procedural_widget .test_code {
