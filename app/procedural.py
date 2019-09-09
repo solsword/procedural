@@ -141,6 +141,14 @@ def route_test():
     username='test'
   )
 
+@app.route("/categories")
+def route_categories():
+  """
+  This route returns JSON for the categories from the CATEGORIES_FILE.
+  """
+  with open(app.config.get("CATEGORIES_FILE", "categories.json"), 'r') as fin:
+    return fin.read()
+
 @app.route("/puzzle", methods=["GET", "POST"])
 def route_puzzle():
   """
