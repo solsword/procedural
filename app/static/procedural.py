@@ -305,7 +305,6 @@ def drag_start(ev):
   button held down. The element under the cursor becomes the event's target.
   """
   global DRAGGED
-  log("DRAG_START")
   # okay to use this here because things inside aren't draggable, so event will
   # bubble to the code_block div, which is.
   if not has_class(ev.target, "code_block"):
@@ -330,7 +329,6 @@ def drag_start(ev):
     item.setAttribute("aria-dropeffect", "move")
   for item in blocks:
     item.setAttribute("aria-dropeffect", "move")
-  log("HE")
   # TODO Why don't the other drag events fire?!?
   #return False
 
@@ -339,7 +337,6 @@ def drag_end(ev):
   Handles the drag end event, which happens when the drag ends without a drop.
   """
   global DRAGGED
-  log("DRAG_END")
   # Remove aria-dropeffect from all targets:
   widget = my_widget(DRAGGED)
   if widget != None:
@@ -368,7 +365,6 @@ def drag_enter(ev):
   new element (the target).
   """
   global DRAGGED
-  log("DRAG_ENTER")
 
   if not same_widget(ev.target, DRAGGED):
     return False
@@ -388,7 +384,6 @@ def drag_leave(ev):
   element (the target) that it was previously over.
   """
   global DRAGGED
-  log("DRAG_LEAVE")
 
   if not same_widget(ev.target, DRAGGED):
     return False
@@ -412,7 +407,6 @@ def drag_over(ev):
   dragged over another element (the target). Preventing the default allows
   dropping.
   """
-  log("DRAG_OVER")
   ev.preventDefault()
   return False
 
@@ -422,7 +416,6 @@ def drag_drop(ev):
   element (the target).
   """
   global DRAGGED
-  log("DRAG_DROP")
   ev.preventDefault()
 
   # Remove aria-dropeffect from all targets:
