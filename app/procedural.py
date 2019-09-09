@@ -144,7 +144,7 @@ def route_test():
 @app.route("/puzzle", methods=["GET", "POST"])
 def route_puzzle():
   """
-  This route returns JSON puzzles from the puzzles/ directory.
+  This route returns JSON puzzles from the PUZZLES_DIRECTORY.
   """
   id = flask.request.form.get("id", None)
   if id == None:
@@ -172,7 +172,8 @@ def route_puzzle():
     user = flask.session.get("CAS_USERNAME", None)
     if has_permission(user, "view_puzzle", id):
       bits = id.split('-')
-      target = os.path.join("puzzles", *bits) + ".json"
+      pdir = app.config.get("PUZZLES_DIRECTORY", "puzzles")
+      target = os.path.join(pdir, *bits) + ".json"
       if os.path.exists(target):
         with open(target, 'r') as fin:
           puzzle = fin.read()

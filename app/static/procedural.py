@@ -813,7 +813,18 @@ def dl_button_handler(ev):
   Click handler for the download button of a puzzle. Bundles up the current
   state of the puzzle into a .json file that can be submitted separately.
   """
-  widget = my_widget(ev.target)
+  ev.target.innerHTML = (
+    "<img src='/static/loading.gif' alt=''>Assembling Solution..."
+  )
+  browser.window.setTimeout(after_update_dl, 0, ev.target)
+
+def after_update_dl(target):
+  """
+  Does the real work of the download button, but is called via setTimeout so
+  that the browser has a chance to update the button to indicate that it's
+  working (see dl_button_handler).
+  """
+  widget = my_widget(target)
   puzzle = widget["puzzle"]
   src_code = get_code_list(widget["source_bucket"])
   if widget.get("solved"):
@@ -825,6 +836,7 @@ def dl_button_handler(ev):
       "This puzzle has not been solved. Are you sure you want to download the "
     + "current configuration?"
     ):
+      target.innerHTML = "Download Solution"
       return
   obj = {
     "puzzle": puzzle["id"],
@@ -842,6 +854,7 @@ def dl_button_handler(ev):
   browser.document.body.appendChild(dla)
   dla.click()
   browser.document.body.removeChild(dla)
+  target.innerHTML = "Download Solution"
 
 
 def attach_error_message(bucket, error_obj, expected=False):
@@ -1551,7 +1564,7 @@ def setup_base_puzzle(node, puzzle):
   if isinstance(code_blocks, str):
     code_blocks = blocks_from_lines(code_blocks)
 
-  given_blocks = puzzle["given"]
+  given_blocks = puzzle.get("given", [])
   if isinstance(given_blocks, str):
     given_blocks = blocks_from_lines(given_blocks)
 
