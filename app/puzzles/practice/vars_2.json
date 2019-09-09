@@ -1,6 +1,6 @@
 {
-  "id": "practice-asg_2",
-  "name": "Assignment Practice 2",
+  "id": "practice-vars_2",
+  "name": "Variables Practice 2",
   "code": [
     "b = a + 1",
     "a = a + 5",
