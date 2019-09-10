@@ -232,7 +232,7 @@ def route_solved():
       print("Failed to save solution:\n" + '\n'.join(tbe.format()))
     else:
       print("Failed to save solution:")
-      traceback.print_exception(type(e), e, sys.last_traceback)
+      traceback.print_exception(*sys.exc_info())
     return {
       "status": "invalid",
       "reason": "failed to save solution"
@@ -251,17 +251,19 @@ def record_solution(username, puzzle, solution):
   Records a solution in the database.
   """
   conn = get_sol_db_connection()
-  conn.execute(
-    "INSERT INTO solutions VALUES (?, DATETIME('now'), ?, ?, ?);",
-    (
-      username,
-      puzzle.get("id", "__unknown__"),
-      json.dumps(puzzle),
-      json.dumps(solution)
+  try:
+    conn.execute(
+      "INSERT INTO solutions VALUES (?, DATETIME('now'), ?, ?, ?);",
+      (
+        username,
+        puzzle.get("id", "__unknown__"),
+        json.dumps(puzzle),
+        json.dumps(solution)
+      )
     )
-  )
-  conn.commit()
-  conn.close()
+    conn.commit()
+  finally:
+    conn.close()
   return True
 
 def all_solutions_by(username):
@@ -270,9 +272,13 @@ def all_solutions_by(username):
   return value is a list of sqlie3 Row objects.
   """
   conn = get_sol_db_connection()
-  cur = conn.execute("SELECT * FROM solutions WHERE username = ?;", (username,))
-  result = list(cur.fetchall())
-  conn.close()
+  try:
+    cur = conn.execute(
+      "SELECT * FROM solutions WHERE username = ?;", (username,)
+    )
+    result = list(cur.fetchall())
+  finally:
+    conn.close()
   return result
 
 def all_solutions_to(puzzle_id):
@@ -281,12 +287,14 @@ def all_solutions_to(puzzle_id):
   return value is a list of sqlie3 Row objects.
   """
   conn = get_sol_db_connection()
-  cur = conn.execute(
-    "SELECT * FROM solutions WHERE puzzle_id = ?;",
-    (puzzle_id,)
-  )
-  result = list(cur.fetchall())
-  conn.close()
+  try:
+    cur = conn.execute(
+      "SELECT * FROM solutions WHERE puzzle_id = ?;",
+      (puzzle_id,)
+    )
+    result = list(cur.fetchall())
+  finally:
+    conn.close()
   return result
 
 def is_admin(user_id):
@@ -294,12 +302,14 @@ def is_admin(user_id):
   Retrieves a user's admin status from the permissions database.
   """
   conn = get_perm_db_connection()
-  cur = conn.execute(
-    "SELECT is_admin FROM permissions WHERE username = ?;",
-    (user_id,)
-  )
-  results = list(cur.fetchall())
-  conn.close()
+  try:
+    cur = conn.execute(
+      "SELECT is_admin FROM permissions WHERE username = ?;",
+      (user_id,)
+    )
+    results = list(cur.fetchall())
+  finally:
+    conn.close()
 
   return (
     len(results) > 0
@@ -312,12 +322,14 @@ def get_permisisons(user_id):
   None for unlisted users.
   """
   conn = get_perm_db_connection()
-  cur = conn.execute(
-    "SELECT permissions FROM permissions WHERE username = ?;",
-    (user_id,)
-  )
-  results = list(cur.fetchall())
-  conn.close()
+  try:
+    cur = conn.execute(
+      "SELECT permissions FROM permissions WHERE username = ?;",
+      (user_id,)
+    )
+    results = list(cur.fetchall())
+  finally:
+    conn.close()
   if len(results) <= 0:
     return None
   else:
@@ -350,23 +362,25 @@ def set_permissions(user_id, perm_obj):
     return False
 
   conn = get_perm_db_connection()
-  cur = conn.execute(
-    "SELECT * FROM permissions WHERE username = ?;",
-    (user_id,)
-  )
-  if len(list(cur.fetchall())) > 0: # user already exists
-    conn.execute(
-      "UPDATE permissions SET permissions = ? WHERE username = ?;",
-      (perm_string, user_id,)
+  try:
+    cur = conn.execute(
+      "SELECT * FROM permissions WHERE username = ?;",
+      (user_id,)
     )
-    conn.commit()
-  else: # new user
-    conn.execute(
-      "INSERT INTO permissions VALUES (?, ?, ?);",
-      (user_id, 'False', perm_string)
-    )
-    conn.commit()
-  conn.close()
+    if len(list(cur.fetchall())) > 0: # user already exists
+      conn.execute(
+        "UPDATE permissions SET permissions = ? WHERE username = ?;",
+        (perm_string, user_id,)
+      )
+      conn.commit()
+    else: # new user
+      conn.execute(
+        "INSERT INTO permissions VALUES (?, ?, ?);",
+        (user_id, 'False', perm_string)
+      )
+      conn.commit()
+  finally:
+    conn.close()
   return True
 
 def grant_permission(user_id, action, item):
@@ -424,12 +438,14 @@ def has_permission(user_id, action, item):
   """
   if user_id != None:
     conn = get_perm_db_connection()
-    cur = conn.execute(
-      "SELECT permissions, is_admin FROM permissions WHERE username = ?;",
-      (user_id,)
-    )
-    results = list(cur.fetchall())
-    conn.close()
+    try:
+      cur = conn.execute(
+        "SELECT permissions, is_admin FROM permissions WHERE username = ?;",
+        (user_id,)
+      )
+      results = list(cur.fetchall())
+    finally:
+      conn.close()
     if len(results) >= 1:
       is_admin = results[0][1] == "True"
       try:
@@ -448,11 +464,13 @@ def has_permission(user_id, action, item):
   
   # If we fall out, check global permissions
   conn = get_perm_db_connection()
-  cur = conn.execute(
-    'SELECT permissions FROM permissions WHERE username = "__all__";'
-  )
-  results = list(cur.fetchall())
-  conn.close()
+  try:
+    cur = conn.execute(
+      'SELECT permissions FROM permissions WHERE username = "__all__";'
+    )
+    results = list(cur.fetchall())
+  finally:
+    conn.close()
   if len(results) > 0:
     try:
       perm_obj = json.loads(results[0][0])
@@ -479,26 +497,27 @@ def set_admin(user_id, admin='True'):
   message and returns False if the given user doesn't already exist.
   """
   conn = get_perm_db_connection()
-  # Check if the user already exists: 
-  cur = conn.execute(
-    "SELECT * FROM permissions WHERE username = ?;",
-    (user_id,)
-  )
-  if len(list(cur.fetchall())) == 0: # user doesn't exists
-    print(
-      "Attempt to set admin status of non-existent user '{}'.".format(user_id)
+  try:
+    # Check if the user already exists: 
+    cur = conn.execute(
+      "SELECT * FROM permissions WHERE username = ?;",
+      (user_id,)
     )
+    if len(list(cur.fetchall())) == 0: # user doesn't exists
+      print(
+        "Attempt to set admin status of non-existent user '{}'.".format(user_id)
+      )
+      result = False
+    else:
+      conn.execute(
+        "UPDATE permissions SET is_admin = ? WHERE username = ?;",
+        (admin, user_id)
+      )
+      conn.commit()
+      result = True
+  finally:
     conn.close()
-    return False
-  else:
-    conn.execute(
-      "UPDATE permissions SET is_admin = ? WHERE username = ?;",
-      (admin, user_id)
-    )
-    conn.commit()
-
-  conn.close()
-  return True
+  return result
 
 def add_user(user_id, is_admin='False'):
   """
@@ -507,13 +526,15 @@ def add_user(user_id, is_admin='False'):
   if the user already exists.
   """
   conn = get_perm_db_connection()
-  # Check if the user already exists: 
-  cur = conn.execute(
-    "SELECT * FROM permissions WHERE username = ?;",
-    (user_id,)
-  )
-  results = list(cur.fetchall())
-  conn.close()
+  try:
+    # Check if the user already exists: 
+    cur = conn.execute(
+      "SELECT * FROM permissions WHERE username = ?;",
+      (user_id,)
+    )
+    results = list(cur.fetchall())
+  finally:
+    conn.close()
   if len(results) > 0: # user already exists
     print(
       "Attempt to create user '{}' who already exists.".format(user_id)
@@ -552,14 +573,18 @@ if __name__ == "__main__":
   # Set up databases if they doesn't already exist:
   if not os.path.exists(SOL_DATABASE):
     conn = get_sol_db_connection()
-    conn.execute(SOL_SCHEMA)
-    conn.commit()
-    conn.close()
+    try:
+      conn.execute(SOL_SCHEMA)
+      conn.commit()
+    finally:
+      conn.close()
   if not os.path.exists(PERM_DATABASE):
     conn = get_perm_db_connection()
-    conn.execute(PERM_SCHEMA)
-    conn.commit()
-    conn.close()
+    try:
+      conn.execute(PERM_SCHEMA)
+      conn.commit()
+    finally:
+      conn.close()
   #app.run('localhost', 1947, ssl_context=('cert.pem', 'key.pem'))
   #app.run('0.0.0.0', 1947, ssl_context=('cert.pem', 'key.pem'))
   app.run('localhost', 1947)
