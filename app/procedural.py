@@ -134,10 +134,10 @@ def route_root():
   )
 
 @app.route('/test')
-@admin_only
+#@admin_only
 def route_test():
   return flask.render_template(
-    "main.html",
+    "test.html",
     username='test'
   )
 

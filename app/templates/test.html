@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Procedural</title>
+    <meta charset="utf-8"/>
+    <meta name="author" content="Peter Mawhorter"/>
+    <link rel="stylesheet" href="{{url_for('static', filename='procedural.css')}}"/>
+    <link rel="stylesheet" href="{{url_for('static', filename='lib/prism.css')}}"/>
+    <script type="text/javascript" src="{{url_for('static', filename='brython/brython.js')}}"></script>
+    <script type="text/javascript" src="{{url_for('static', filename='brython/brython_stdlib.js')}}"></script>
+    <script type="text/javascript" src="{{url_for('static', filename='lib/prism.js')}}" data-manual></script>
+<style>
+body {
+  font-size: larger;
+}
+
+#user_info {
+  padding: 4pt;
+}
+
+a:link, a:visited {
+  color: #049;
+}
+
+a:link:hover, a:visited:hover {
+  color: #08d;
+}
+</style>
+  </head>
+  <body onload="brython({debug:1, pythonpath:['{{url_for('static', filename='python_modules')}}']});">
+    <script
+     type="text/python"
+     src="{{url_for('static', filename='procedural.py')}}"
+     id="procedural_script"
+    ></script>
+    <div id="user_info">
+    {% if username %}
+      You are logged in as: {{username}}. <a href="{{url_for('cas.logout')}}">Click here to log out.</a>
+    {% else %}
+      You are not logged in. Some puzzles may be unavailable. <a href="{{url_for('cas.login')}}">Click here to log in.</a>
+    {% endif %}
+    </div>
+    <!-- with no data-categories, this loads the default puzzles -->
+    <div
+     class="procedural_selector"
+     data-load-puzzles-from="{{url_for('route_puzzle')}}"
+     aria-busy="true"
+     aria-live="polite"
+    >
+    <div class="procedural_widget" data-submit-solutions-to="{{url_for('route_solved')}}">
+        <div class="loading">
+          <img src="{{url_for('static',filename='loading.gif')}}" alt=""/> Loading...
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

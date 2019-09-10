@@ -151,9 +151,42 @@ DEFAULT_INFO = {
               "expect_error": "IndexError('There are only 3 outputs, so we can\\'t retrieve #3.\\n(Counting starts from 0, so the last one available is #2)')"
             }
           ]
+        },
+        {
+          "id": "fibbonacci",
+          "name": "Fibbonacci Sequence",
+          "instructions": "Add lines of code to the left-hand side so that the function computes the nth Fibbonacci number (the Fibbonacci numbers are 1, 1, 2, 3, 5, 8, 13, 21, etc., where each number is the sum of the previous two, starting from <code>fib(0) == 1</code> and <code>fib(1) == 1</code>). You will also have to select values for some of the variables.",
+          "code": [
+"        return __sel_base__",
+"    return __sel_ret__",
+"    if __sel_n__ < 2:",
+          ],
+          "given": [
+"def fib(n):\n    '''\n    Computes the nth Fibbonacci number.\n    '''",
+"    prev_2 = fib(n __sel_op__ 2)",
+"    prev = fib(n __sel_op__ 1)",
+          ],
+          "options": {
+            "__sel_base__": [ "0", "1", "2" ],
+            "__sel_ret__": [
+              "0", "1", "prev", "prev_2", "prev + prev_2", "prev - prev_2"
+            ],
+            "__sel_n__": [ "x", "n", "prev", "prev_2" ],
+            "__sel_op__": [ "+", "-", "*", "=" ]
+          },
+          "tests": [
+            [ "fib(0)", "1" ],
+            [ "fib(1)", "1" ],
+            [ "fib(2)", "2" ],
+            [ "fib(3)", "3" ],
+            [ "fib(4)", "5" ],
+            [ "fib(5)", "8" ],
+            [ "fib(6)", "13" ],
+            [ "fib(7)", "21" ],
+          ]
         }
       ]
-    }
+    },
   ]
 }
 
@@ -316,7 +349,7 @@ def drag_start(ev):
   DRAGGED.setAttribute("aria-dragged", "true")
   ev.dataTransfer.setData('application/x-moz-node', ev.target)
   ev.dataTransfer.setData('text/html', ev.target.innerHTML)
-  ev.dataTransfer.setData('text/plain', ev.target.__code__)
+  ev.dataTransfer.setData('text/plain', get_code_block_code(ev.target))
   # Set aria-dropeffect on all valid targets:
   widget = my_widget(DRAGGED)
   wnode = widget["node"]
@@ -499,39 +532,143 @@ def create_slot():
   slot.innerHTML = "&nbsp;" # don't let it be completely empty
   return slot
 
-def add_code_block_to_bucket(bucket, code):
+def linked_option_html_for(key, values):
+  """
+  Returns HTML code to be included in a code block that implements a selector
+  for the given key, selecting one of the given values (the first by default).
+  The selector will also re-select all values with the same key in the same
+  widget when a new option is chosen.
+  """
+  return """\
+<select
+ class="option_selector"
+ data-options-key="{key}"
+ onchange="handle_linked_option_select"
+>
+  <option value="{fval}" selected="true"><code>{fval}</code></option>
+  {options}
+</select>""".format(
+    key=key,
+    fval = values[0],
+    options='\n'.join(
+      '  <option value="{val}"><code>{val}</code></option>'.format(val=val)
+        for val in values[1:]
+    )
+  )
+
+
+DONT_ECHO = False
+def handle_linked_option_select(ev):
+  """
+  Handles a change event for a linked option select by updating any other
+  option selects with the same key value.
+  """
+  # TODO: Why doesn't this work when attached to browser.window and called via
+  # in-attribute onchange?
+  log("HLOS")
+  global DONT_ECHO
+  if DONT_ECHO:
+    # disable this handler because the event is being triggered by an update
+    # caused by this handler.
+    return
+
+  # detect selected value
+  selected_value = ev.target.value
+  key = ev.target.getAttribute("data-options-key")
+
+  # Safely update our other option selects without re-triggering this handler:
+  all_selectors = my_widget(ev.target).querySelectorAll(".option_selector")
+  matching_selectors = [
+    sel for sel in all_selectors if sel.getAttribute("data-options-key") == key
+  ]
+  DONT_ECHO = True
+  for sel in matching_selectors:
+    sel.value = selected_value
+  DONT_ECHO = False
+
+browser.window.handle_linked_option_select = handle_linked_option_select
+
+def get_code_block_code(block):
+  """
+  Extracts code from a code block, respecting selected values for any options
+  that might be present.
+  """
+  # Grab selectors and figure out their current values:
+  selectors = block.querySelectorAll(".option_selector")
+  values = {}
+  for sel in selectors:
+    values[sel.getAttribute("data-options-key")] = sel.value
+
+  # Substitute option keys in the code with option values:
+  result = block.__code__
+  if not hasattr(block, "__options__"):
+    return result
+
+  for opt in block.__options__:
+    if opt in result:
+      log("A")
+      index = result.index(opt)
+      if opt not in values:
+        error(
+          (
+            "Option key '{}' not found among selector values for code line:"
+            "\n{}\nValues are:\n{}"
+          ).format(opt, block.__code__, values)
+        )
+        val = ""
+      else:
+        val = values[opt]
+      result = (
+        result[:index]
+      + val
+      + result[index + len(opt):]
+      )
+
+  return result
+
+def add_code_block_to_bucket(bucket, options, code, given=False):
   """
   Adds a block of code to a code block bucket. Creates the requisite DOM
-  element and translates from raw code to HTML specifics. The given bucket
-  element should be a DOM element with the code_bucket class.
+  element and translates from raw code to HTML specifics. Inserts selection
+  elements into the code itself if any of the given options keys matches within
+  the given code. The given bucket element should be a DOM element with the
+  code_bucket class, and the options should be a dictionary mapping keys to
+  lists of strings (the options for that key). If 'given' is supplied as True,
+  the block of code will be an immovable 'given' code block instead of a
+  moveable active block.
   """
   codeblock = browser.document.createElement("code")
   add_class(codeblock, "code_block")
+  if given:
+    add_class(codeblock, "given")
   add_class(codeblock, "language-python")
   codeblock.draggable = True
   codeblock.setAttribute("aria-dragged", "false")
   codeblock.__code__ = code
+  codeblock.__options__ = {}
+  for key in options:
+    if key in code:
+      codeblock.__options__[key] = options[key]
+
   codeblock.innerHTML = code
   # Note: this must be innerHTML, not innerText! (otherwise line breaks get
   # eaten)
   browser.window.Prism.highlightElement(codeblock)
-  bucket.appendChild(codeblock)
 
-def add_given_block_to_bucket(bucket, code):
-  """
-  Works like add_code_block_to_bucket, but marks the block as a given block,
-  and prevents it from being dragged.
-  """
-  codeblock = browser.document.createElement("code")
-  add_class(codeblock, "code_block", "given")
-  add_class(codeblock, "language-python")
-  codeblock.__code__ = code
-  codeblock.innerHTML = code
-  # Note: this must be innerHTML, not innerText! (otherwise line breaks get
-  # eaten)
-  browser.window.Prism.highlightElement(codeblock)
-  bucket.appendChild(codeblock)
+  inner_html = codeblock.innerHTML
+  for key in codeblock.__options__:
+    values = codeblock.__options__[key]
+    if key in inner_html:
+      log("B")
+      where = inner_html.index(key)
+      inner_html = (
+        inner_html[:where]
+      + linked_option_html_for(key, values)
+      + inner_html[where + len(key):]
+      )
+  codeblock.innerHTML = inner_html
 
+  bucket.appendChild(codeblock)
 
 def add_empty_slot_to_bucket(bucket):
   """
@@ -730,7 +867,7 @@ def get_code_string(bucket):
   code = ""
   for child in bucket.children:
     if child.hasOwnProperty("__code__"):
-      code += child.__code__ + '\n'
+      code += get_code_block_code(child) + '\n'
   code = code[:-1] # remove trailing newline
   return code
 
@@ -740,7 +877,7 @@ def get_code_list(bucket):
   single block of code.
   """
   blocks = bucket.querySelectorAll(".code_block")
-  return [block.__code__ for block in blocks]
+  return [get_code_block_code(block) for block in blocks]
 
 def eval_button_handler(ev):
   """
@@ -750,7 +887,7 @@ def eval_button_handler(ev):
   """
   # TODO: url_for the loading GIF!
   ev.target.innerHTML = (
-    "<img src='/static/loading.gif' alt=''>Checking Solution..."
+    "<img src='{}' alt=''>Checking Solution...".format(LOADING_GIF_URL)
   )
   ev.target.disabled = True
   # TODO: activity indicator
@@ -814,7 +951,7 @@ def dl_button_handler(ev):
   state of the puzzle into a .json file that can be submitted separately.
   """
   ev.target.innerHTML = (
-    "<img src='/static/loading.gif' alt=''>Assembling Solution..."
+    "<img src='{}' alt=''>Assembling Solution...".format(LOADING_GIF_URL)
   )
   browser.window.setTimeout(after_update_dl, 0, ev.target)
 
@@ -894,6 +1031,7 @@ def attach_error_message_at_line(code_elem, line, error_obj, expected=False):
     error(
       "Target element doesn't have a __code__ attribute:\n{}".format(code_elem)
     )
+  code_string = get_code_block_code(code_elem)
   if issubclass(error_type, SyntaxError):
     err.appendChild(
       browser.document.createTextNode(
@@ -906,7 +1044,7 @@ def attach_error_message_at_line(code_elem, line, error_obj, expected=False):
     add_class(errcode, "language-python")
     errcode.innerHTML = "<unknown line>"
     if line != None:
-      clines = code_elem.__code__.split('\n')
+      clines = code_string.split('\n')
       if 0 <= line < len(clines):
         errcode.innerHTML = clines[line]
     browser.window.Prism.highlightElement(errcode) # highlight just the code
@@ -918,14 +1056,15 @@ def attach_error_message_at_line(code_elem, line, error_obj, expected=False):
     errdesc.appendChild(caret)
     err.appendChild(errdesc)
 
-  elif '\n' in code_elem.__code__: # multi-line code so identify the line
+  elif '\n' in code_string:
+    # multi-line code so identify the line
     if line != None:
       err.appendChild(
         browser.document.createTextNode(
           "\nThe error was detected on this line:"
         )
       )
-      clines = code_elem.__code__.split('\n')
+      clines = code_string.split('\n')
       if 0 <= line < len(clines):
         err_line = clines[line]
       else:
@@ -965,7 +1104,7 @@ def block_and_line_responsible_for(bucket, error_obj):
       if first == None:
         first = child
       last = child
-      lines = len(child.__code__.split('\n'))
+      lines = len(get_code_block_code(child).split('\n'))
       if sofar + lines >= error_line:
         return (child, error_line - 1 - sofar)
       else:
@@ -1300,7 +1439,7 @@ def mark_solved(widget, solution):
     remove_class(status_div, "succeeded", "failed")
     add_class(status_div, "active")
     status_div.innerHTML = (
-      "<img src='/static/loading.gif' alt=''/> Submitting solution..."
+      "<img src='{}' alt=''/> Submitting solution...".format(LOADING_GIF_URL)
     )
 
     #puzzle_json = json.dumps(widget["puzzle"])
@@ -1568,8 +1707,11 @@ def setup_base_puzzle(node, puzzle):
   if isinstance(given_blocks, str):
     given_blocks = blocks_from_lines(given_blocks)
 
+  options = puzzle.get("options", {})
+
   w["code_blocks"] = code_blocks
   w["given_blocks"] = given_blocks
+  w["options"] = options
 
   # submission status div
   w["submission_status"] = browser.document.createElement("div")
@@ -1604,7 +1746,7 @@ def setup_base_puzzle(node, puzzle):
 
   # Add each code block to our source div:
   for block in code_blocks:
-    add_code_block_to_bucket(w["source_bucket"], block)
+    add_code_block_to_bucket(w["source_bucket"], w["options"], block)
 
   # bucket for solution blocks
   w["soln_bucket"] = browser.document.createElement("div")
@@ -1622,7 +1764,7 @@ def setup_base_puzzle(node, puzzle):
 
   # Add each given block to our soln div:
   for block in given_blocks:
-    add_given_block_to_bucket(w["soln_bucket"], block)
+    add_code_block_to_bucket(w["soln_bucket"], w["options"], block, given=True)
 
   # Create evaluate button in the instructions
   eb = browser.document.createElement("button")
@@ -2086,15 +2228,24 @@ def setup_selector_definite(node, info):
   node.removeAttribute("aria-busy")
 
 
+LOADING_GIF_URL = "loading.gif"
 
 def init_procedural_widgets():
   """
   Selects all procedural_widget divs and creates elements inside each one to
   play a Parson's puzzle.
   """
-  # Hide loading tags:
+  global LOADING_GIF_URL
+  # Hide loading tags, and pick up loading gif url:
   loading = browser.document.querySelectorAll(".procedural_widget .loading")
   for l in loading:
+    for child in l.childNodes:
+      if (
+        hasattr(child, "hasAttribute")
+    and child.hasAttribute("src")
+    and child.getAttribute("src").endswith("loading.gif")
+      ):
+        LOADING_GIF_URL = child.src
     l.style.display = "none"
 
   # Collect each selector:
