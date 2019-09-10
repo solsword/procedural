@@ -227,8 +227,12 @@ def route_solved():
   try:
     record_solution(flask.session["CAS_USERNAME"], puzzle, solution)
   except Exception as e:
-    tbe = traceback.TracebackException.from_exception(e)
-    print("Failed to save solution:\n" + '\n'.join(tbe.format()))
+    if sys.version_info >= (3, 5):
+      tbe = traceback.TracebackException.from_exception(e)
+      print("Failed to save solution:\n" + '\n'.join(tbe.format()))
+    else:
+      print("Failed to save solution:")
+      traceback.print_exception(type(e), e, sys.last_traceback)
     return {
       "status": "invalid",
       "reason": "failed to save solution"
