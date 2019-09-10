@@ -9,6 +9,23 @@
     <script type="text/javascript" src="{{url_for('static', filename='brython/brython.js')}}"></script>
     <script type="text/javascript" src="{{url_for('static', filename='brython/brython_stdlib.js')}}"></script>
     <script type="text/javascript" src="{{url_for('static', filename='lib/prism.js')}}" data-manual></script>
+<style>
+body {
+  font-size: larger;
+}
+
+#user_info {
+  padding: 4pt;
+}
+
+a:link, a:visited {
+  color: #049;
+}
+
+a:link:hover, a:visited:hover {
+  color: #08d;
+}
+</style>
   </head>
   <body onload="brython({debug:1, pythonpath:['{{url_for('static', filename='python_modules')}}']});">
     <script
@@ -16,11 +33,13 @@
      src="{{url_for('static', filename='procedural.py')}}"
      id="procedural_script"
     ></script>
+    <div id="user_info">
     {% if username %}
-      You are logged in as: {{username}}
+      You are logged in as: {{username}}. <a href="{{url_for('cas.logout')}}">Click here to log out.</a>
     {% else %}
       You are not logged in. Some puzzles may be unavailable. <a href="{{url_for('cas.login')}}">Click here to log in.</a>
     {% endif %}
+    </div>
     <div
      class="procedural_selector"
      data-load-puzzles-from="{{url_for('route_puzzle')}}"

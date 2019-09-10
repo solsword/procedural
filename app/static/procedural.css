@@ -58,22 +58,12 @@
 }
 
 
-.procedural_widget .eval_button {
+.procedural_widget .eval_button, .procedural_widget .dl_button {
   -webkit-appearance: button;
   float: right;
   font-size: 14pt;
   border-radius: 4pt;
-  margin: 0pt 4pt 0pt 4pt;
-  float: right;
-}
-
-.procedural_widget .dl_button {
-  -webkit-appearance: button;
-  float: right;
-  clear: right;
-  font-size: 14pt;
-  border-radius: 4pt;
-  margin: 0pt 4pt 0pt 4pt;
+  margin: 4pt;
   float: right;
 }
 
