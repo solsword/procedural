@@ -120,7 +120,7 @@ def ultimate_ancestor(obj):
   added to a Canvas or Layer.
   """
   result = obj
-  while hasatr(result, "_parent"):
+  while hasattr(result, "_parent"):
     result = result._parent
   return result
 
