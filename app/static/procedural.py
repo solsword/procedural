@@ -1186,7 +1186,7 @@ def report_test_results(widget, results, error_obj=None, pretest_error=None):
         # report pass/fail for individual tests
         for i, r in enumerate(results):
           tnode = widget["test_elements"][i]
-          test = widget["puzzle"]["tests"][i]
+          test = full_test(widget["puzzle"]["tests"][i])
           tval = tnode.querySelector(".test_value")
           texp = tnode.querySelector(".test_expected")
 
@@ -1767,11 +1767,11 @@ def full_test(test):
       "expected": test[1]
     }
   else:
-    error("Invalid test type ({}):\n{}".format(type(test), test))
-    return test
+    # we'll assume/hope that it's a raw JS object
+    result = make_dict(test)
 
   if "expression" not in result:
-    error("Full test without '{}':\n{}".format(key, test))
+    error("Full test without 'expression':\n{}".format(test))
   if "label" not in result:
     result["label"] = "Value of '{}'".format(result["expression"])
   if "expected" not in result and "expect_error" not in result:

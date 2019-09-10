@@ -12,6 +12,10 @@
   "tests": [
     ["a", "8"],
     ["b", "9"],
-    ["c", "20"]
+    {
+      "label": "Value of 'c'",
+      "expression": "c",
+      "expected": "20"
+    }
   ]
 }
