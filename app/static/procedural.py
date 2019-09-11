@@ -163,10 +163,12 @@ DEFAULT_INFO = {
           ],
           "given": [
 "def fib(n):\n    '''\n    Computes the nth Fibbonacci number.\n    '''",
+"    # test: _sel_test_ _sel_test_",
 "    prev_2 = fib(n _sel_op_ 2)",
 "    prev = fib(n _sel_op_ 1)",
           ],
           "options": {
+            "test": [ "this", "is", "a", "test" ],
             "base": [ "0", "1", "2" ],
             "ret": [
               "0", "1", "prev", "prev_2", "prev + prev_2", "prev - prev_2"
@@ -668,7 +670,6 @@ def add_code_block_to_bucket(bucket, options, code, given=False):
       + linked_option_html_for(opt, values)
       + inner_html[where + len(repl):]
       )
-      break
   codeblock.innerHTML = inner_html
 
   bucket.appendChild(codeblock)
