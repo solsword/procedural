@@ -224,7 +224,7 @@ def route_solved():
       print("Failed to save solution:\n" + '\n'.join(tbe.format()))
     else:
       print("Failed to save solution:")
-      traceback.print_exception(type(e), e, sys.last_traceback)
+      traceback.print_exception(*sys.exc_info())
     return {
       "status": "invalid",
       "reason": "failed to save solution"
@@ -355,7 +355,6 @@ def set_permissions(puzzle_id, perm_obj):
   perms["puzzles"][puzzle_id] = perm_obj
 
   return safely_overwrite_permissions_file(perms)
-
 
 def deny_permission(puzzle_id, user_id):
   """
