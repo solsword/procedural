@@ -643,11 +643,14 @@ def add_code_block_to_bucket(bucket, options, code, given=False):
   """
   codeblock = browser.document.createElement("code")
   add_class(codeblock, "code_block")
+  add_class(codeblock, "language-python")
+
   if given:
     add_class(codeblock, "given")
-  add_class(codeblock, "language-python")
-  codeblock.draggable = True
-  codeblock.setAttribute("aria-dragged", "false")
+  else:
+    codeblock.draggable = True
+    codeblock.setAttribute("aria-dragged", "false")
+
   codeblock.__code__ = code
   codeblock.__options__ = {}
   for opt in options:
