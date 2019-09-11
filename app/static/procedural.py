@@ -157,22 +157,22 @@ DEFAULT_INFO = {
           "name": "Fibbonacci Sequence",
           "instructions": "Add lines of code to the left-hand side so that the function computes the nth Fibbonacci number (the Fibbonacci numbers are 1, 1, 2, 3, 5, 8, 13, 21, etc., where each number is the sum of the previous two, starting from <code>fib(0) == 1</code> and <code>fib(1) == 1</code>). You will also have to select values for some of the variables.",
           "code": [
-"        return __sel_base__",
-"    return __sel_ret__",
-"    if __sel_n__ < 2:",
+"        return _sel_base_",
+"    return _sel_ret_",
+"    if _sel_n_ < 2:",
           ],
           "given": [
 "def fib(n):\n    '''\n    Computes the nth Fibbonacci number.\n    '''",
-"    prev_2 = fib(n __sel_op__ 2)",
-"    prev = fib(n __sel_op__ 1)",
+"    prev_2 = fib(n _sel_op_ 2)",
+"    prev = fib(n _sel_op_ 1)",
           ],
           "options": {
-            "__sel_base__": [ "0", "1", "2" ],
-            "__sel_ret__": [
+            "base": [ "0", "1", "2" ],
+            "ret": [
               "0", "1", "prev", "prev_2", "prev + prev_2", "prev - prev_2"
             ],
-            "__sel_n__": [ "x", "n", "prev", "prev_2" ],
-            "__sel_op__": [ "+", "-", "*", "=" ]
+            "n": [ "x", "n", "prev", "prev_2" ],
+            "op": [ "+", "-", "*", "=" ]
           },
           "tests": [
             [ "fib(0)", "1" ],
@@ -543,7 +543,7 @@ def linked_option_html_for(key, values):
 <select
  class="option_selector"
  data-options-key="{key}"
- onchange="handle_linked_option_select"
+ onchange="handle_linked_option_select(this)"
 >
   <option value="{fval}" selected="true"><code>{fval}</code></option>
   {options}
@@ -558,14 +558,13 @@ def linked_option_html_for(key, values):
 
 
 DONT_ECHO = False
-def handle_linked_option_select(ev):
+def handle_linked_option_select(selector):
   """
   Handles a change event for a linked option select by updating any other
   option selects with the same key value.
   """
   # TODO: Why doesn't this work when attached to browser.window and called via
   # in-attribute onchange?
-  log("HLOS")
   global DONT_ECHO
   if DONT_ECHO:
     # disable this handler because the event is being triggered by an update
@@ -573,11 +572,13 @@ def handle_linked_option_select(ev):
     return
 
   # detect selected value
-  selected_value = ev.target.value
-  key = ev.target.getAttribute("data-options-key")
+  selected_value = selector.value
+  key = selector.getAttribute("data-options-key")
 
   # Safely update our other option selects without re-triggering this handler:
-  all_selectors = my_widget(ev.target).querySelectorAll(".option_selector")
+  all_selectors = my_widget(selector)["node"].querySelectorAll(
+    ".option_selector"
+  )
   matching_selectors = [
     sel for sel in all_selectors if sel.getAttribute("data-options-key") == key
   ]
@@ -586,6 +587,7 @@ def handle_linked_option_select(ev):
     sel.value = selected_value
   DONT_ECHO = False
 
+# Attach it to the window so it's available in JavaScript
 browser.window.handle_linked_option_select = handle_linked_option_select
 
 def get_code_block_code(block):
@@ -605,9 +607,9 @@ def get_code_block_code(block):
     return result
 
   for opt in block.__options__:
-    if opt in result:
-      log("A")
-      index = result.index(opt)
+    repl = "_sel_{}_".format(opt)
+    while repl in result:
+      index = result.index(repl)
       if opt not in values:
         error(
           (
@@ -621,7 +623,7 @@ def get_code_block_code(block):
       result = (
         result[:index]
       + val
-      + result[index + len(opt):]
+      + result[index + len(repl):]
       )
 
   return result
@@ -646,9 +648,9 @@ def add_code_block_to_bucket(bucket, options, code, given=False):
   codeblock.setAttribute("aria-dragged", "false")
   codeblock.__code__ = code
   codeblock.__options__ = {}
-  for key in options:
-    if key in code:
-      codeblock.__options__[key] = options[key]
+  for opt in options:
+    if opt in code:
+      codeblock.__options__[opt] = options[opt]
 
   codeblock.innerHTML = code
   # Note: this must be innerHTML, not innerText! (otherwise line breaks get
@@ -656,16 +658,17 @@ def add_code_block_to_bucket(bucket, options, code, given=False):
   browser.window.Prism.highlightElement(codeblock)
 
   inner_html = codeblock.innerHTML
-  for key in codeblock.__options__:
-    values = codeblock.__options__[key]
-    if key in inner_html:
-      log("B")
-      where = inner_html.index(key)
+  for opt in codeblock.__options__:
+    values = codeblock.__options__[opt]
+    repl = "_sel_{}_".format(opt)
+    while repl in inner_html:
+      where = inner_html.index(repl)
       inner_html = (
         inner_html[:where]
-      + linked_option_html_for(key, values)
-      + inner_html[where + len(key):]
+      + linked_option_html_for(opt, values)
+      + inner_html[where + len(repl):]
       )
+      break
   codeblock.innerHTML = inner_html
 
   bucket.appendChild(codeblock)
