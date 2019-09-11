@@ -1,0 +1,7 @@
+{
+  "admins": [ "someadmin" ],
+  "puzzles": {
+    "practice-vars_1": { "allow": true, "deny": [ "someuser", "anotheruser" ] },
+    "practice-vars_2": { "allow": true, "deny": [ "test" ] }
+  }
+}
