@@ -15,6 +15,7 @@ import os
 import sys
 import json
 import traceback
+import datetime
 
 #------------------#
 # Global Variables #
@@ -217,7 +218,12 @@ def route_solved():
     return { "status": "invalid", "reason": "invalid solution" }
 
   try:
-    record_solution(flask.session["CAS_USERNAME"], puzzle, solution)
+    result = record_solution(flask.session["CAS_USERNAME"], puzzle, solution)
+    if result != True:
+      return {
+        "status": "invalid",
+        "reason": "failed to save solution"
+      }
   except Exception as e:
     if sys.version_info >= (3, 5):
       tbe = traceback.TracebackException.from_exception(e)
@@ -227,7 +233,7 @@ def route_solved():
       traceback.print_exception(*sys.exc_info())
     return {
       "status": "invalid",
-      "reason": "failed to save solution"
+      "reason": "failed to save solution (crashed)"
     }
 
   # TODO: Verify solutions at all?
@@ -247,18 +253,20 @@ def record_solution(username, puzzle, solution):
   sd = app.config.get("SOLUTIONS_DIR", "submissions")
   try:
     if not os.path.exists(sd):
-      os.mkdir(sd, mode=0o770)
-  except:
+      os.mkdir(sd, 0o770)
+  except Exception as e:
     print("Failed to create submissions directory '{}'.".format(sd))
+    traceback.print_exception(*sys.exc_info())
     return False
 
   # create user directory if necessary
   ud = os.path.join(sd, username)
   try:
     if not os.path.exists(ud):
-      os.mkdir(ud, mode=0o770)
-  except:
+      os.mkdir(ud, 0o770)
+  except Exception as e:
     print("Failed to create user subdirectory '{}'.".format(ud))
+    traceback.print_exception(*sys.exc_info())
     return False
 
   # timestamp
@@ -275,8 +283,9 @@ def record_solution(username, puzzle, solution):
   try:
     with open(sf, 'w') as fout:
       json.dump({"puzzle": puzzle, "solution": solution}, fout)
-  except:
+  except Exception as e:
     print("Failed to write solution file '{}'.".format(sf))
+    traceback.print_exception(*sys.exc_info())
     return False
 
   # we succeeded!
@@ -403,6 +412,8 @@ def has_permission(puzzle_id, user_id):
 
   # Actually check puzzle permissions:
   pzperms = get_permisisons(puzzle_id)
+  if pzperms == None:
+    return False # no permissions for unknown puzzle
   allow = pzperms.get("allow", False)
   if allow == True:
     deny = pzperms.get("deny", [])
@@ -448,10 +459,13 @@ def get_current_permissions():
   except Exception as e:
     if sys.version_info >= (3, 5):
       tbe = traceback.TracebackException.from_exception(e)
-      print("Error loading permissions:\n" + '\n'.join(tbe.format()))
+      print(
+        "Error loading permissions from file '{}':\n".format(pf)
+      + '\n'.join(tbe.format())
+      )
     else:
-      print("Error loading permissions:")
-      traceback.print_exception(type(e), e, sys.last_traceback)
+      print("Error loading permissions from file '{}':".format(pf))
+      traceback.print_exception(*sys.exc_info())
     return DEFAULT_PERMISSIONS
 
 def safely_overwrite_permissions_file(perms):
