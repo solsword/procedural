@@ -641,22 +641,30 @@ def add_code_block_to_bucket(bucket, options, code, given=False):
   the block of code will be an immovable 'given' code block instead of a
   moveable active block.
   """
+  log("HERE")
   codeblock = browser.document.createElement("code")
   add_class(codeblock, "code_block")
   add_class(codeblock, "language-python")
 
+  log("A")
   if given:
     add_class(codeblock, "given")
   else:
     codeblock.draggable = True
     codeblock.setAttribute("aria-dragged", "false")
+  log("B")
 
   codeblock.__code__ = code
   codeblock.__options__ = {}
+  log("O", options)
   for opt in options:
+    log("Z")
+    log(opt)
+    log(code)
     if opt in code:
       codeblock.__options__[opt] = options[opt]
 
+  log("C")
   codeblock.innerHTML = code
   # Note: this must be innerHTML, not innerText! (otherwise line breaks get
   # eaten)
@@ -664,6 +672,7 @@ def add_code_block_to_bucket(bucket, options, code, given=False):
 
   inner_html = codeblock.innerHTML
   for opt in codeblock.__options__:
+    log("O2", opt)
     values = codeblock.__options__[opt]
     repl = "_sel_{}_".format(opt)
     while repl in inner_html:
@@ -674,6 +683,7 @@ def add_code_block_to_bucket(bucket, options, code, given=False):
       + inner_html[where + len(repl):]
       )
   codeblock.innerHTML = inner_html
+  log("D")
 
   bucket.appendChild(codeblock)
 
@@ -1718,7 +1728,7 @@ def setup_base_puzzle(node, puzzle):
 
   w["code_blocks"] = code_blocks
   w["given_blocks"] = given_blocks
-  w["options"] = options
+  w["options"] = make_dict(options)
 
   # submission status div
   w["submission_status"] = browser.document.createElement("div")
