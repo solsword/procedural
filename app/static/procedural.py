@@ -801,6 +801,32 @@ def mkprint():
 
       raise IndexError(message)
 
+  def printed_by(fname, n=None):
+    """
+    Calls the function with the given name with zero arguments, and then
+    captures its printed output. Returns the nth line of printed output from
+    that function, or the entire printed output as a single string if n is None
+    (the default).
+    """
+    nonlocal _output
+    olen = len(_output)
+    eval(fname + "()")
+    my_output = _output[olen:] # any new additions
+    rlen = len(my_output)
+    if n == None:
+      return ''.join(my_output)
+    else:
+      if n >= rlen or n < -(rlen):
+        raise IndexError(
+          "Function {} produced only {} outputs, so we can't retrieve #{}"
+          .format(
+            fname,
+            n
+          )
+        )
+      else:
+        return my_output[n]
+
   def reset_output():
     """
     Erases output recorded using fake print. Use for testing purposes.
@@ -808,7 +834,7 @@ def mkprint():
     nonlocal _output
     _output = []
 
-  return print, printed, reset_output
+  return print, printed, printed_by, reset_output
 
 def mkinput(inputs=None):
   """
@@ -855,11 +881,11 @@ def mkenv(inputs=None):
   result = ({}, {})
 
   # Create fake print & input functions:
-  print, printed, reset_output = mkprint()
+  print, printed, printed_by, reset_output = mkprint()
   input, reset_input = mkinput(inputs)
 
   # Make fake functions available as globals:
-  for f in (print, printed, reset_output, input, reset_input):
+  for f in (print, printed, printed_by, reset_output, input, reset_input):
     result[0][f.__name__] = f
 
   return result
