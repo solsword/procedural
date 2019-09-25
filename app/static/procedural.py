@@ -641,30 +641,22 @@ def add_code_block_to_bucket(bucket, options, code, given=False):
   the block of code will be an immovable 'given' code block instead of a
   moveable active block.
   """
-  log("HERE")
   codeblock = browser.document.createElement("code")
   add_class(codeblock, "code_block")
   add_class(codeblock, "language-python")
 
-  log("A")
   if given:
     add_class(codeblock, "given")
   else:
     codeblock.draggable = True
     codeblock.setAttribute("aria-dragged", "false")
-  log("B")
 
   codeblock.__code__ = code
   codeblock.__options__ = {}
-  log("O", options)
   for opt in options:
-    log("Z")
-    log(opt)
-    log(code)
     if opt in code:
       codeblock.__options__[opt] = options[opt]
 
-  log("C")
   codeblock.innerHTML = code
   # Note: this must be innerHTML, not innerText! (otherwise line breaks get
   # eaten)
@@ -672,7 +664,6 @@ def add_code_block_to_bucket(bucket, options, code, given=False):
 
   inner_html = codeblock.innerHTML
   for opt in codeblock.__options__:
-    log("O2", opt)
     values = codeblock.__options__[opt]
     repl = "_sel_{}_".format(opt)
     while repl in inner_html:
@@ -683,7 +674,6 @@ def add_code_block_to_bucket(bucket, options, code, given=False):
       + inner_html[where + len(repl):]
       )
   codeblock.innerHTML = inner_html
-  log("D")
 
   bucket.appendChild(codeblock)
 
@@ -801,7 +791,7 @@ def mkprint():
 
       raise IndexError(message)
 
-  def printed_by(fname, n=None):
+  def printed_by(function, n=None):
     """
     Calls the function with the given name with zero arguments, and then
     captures its printed output. Returns the nth line of printed output from
@@ -810,7 +800,9 @@ def mkprint():
     """
     nonlocal _output
     olen = len(_output)
-    eval(fname + "()")
+    # TODO: something better than this DISGUSTING HACK?
+    env = sys._getframe(2).f_globals
+    eval(function.__name__ + "()", env)
     my_output = _output[olen:] # any new additions
     rlen = len(my_output)
     if n == None:
@@ -820,7 +812,7 @@ def mkprint():
         raise IndexError(
           "Function {} produced only {} outputs, so we can't retrieve #{}"
           .format(
-            fname,
+            function.__name__,
             n
           )
         )
@@ -878,7 +870,7 @@ def mkenv(inputs=None):
   Creates an execution environment where input() calls will receive the given
   inputs one by one (inputs must be a list of strings if provided).
   """
-  result = ({}, {})
+  result = {}
 
   # Create fake print & input functions:
   print, printed, printed_by, reset_output = mkprint()
@@ -886,7 +878,7 @@ def mkenv(inputs=None):
 
   # Make fake functions available as globals:
   for f in (print, printed, printed_by, reset_output, input, reset_input):
-    result[0][f.__name__] = f
+    result[f.__name__] = f
 
   return result
 
@@ -899,7 +891,8 @@ def exec_code(code, env=None):
   if env == None:
     env = mkenv() # create a new environment
 
-  exec(code, globals=env[0], locals=env[1])
+  # module context has same globals & locals
+  exec(code, env)
 
   return env
 
@@ -1245,19 +1238,22 @@ def run_tests(widget, env):
 
     if "prep" in test:
       try:
-        exec(test["prep"], globals=env[0], locals=env[1])
+        # module context uses same globals & locals
+        exec(test["prep"], env)
       except Exception as e:
         tresult["prep_exception"] = trap_exception(e)
 
     try:
-      tresult["result"] = eval(texpr, globals=env[0], locals=env[1])
+      # module context uses same globals & locals
+      tresult["result"] = eval(texpr, env)
       if "round" in test:
         tresult["result"] = round(tresult["result"], test["round"])
     except Exception as e:
       tresult["exception"] = trap_exception(e)
 
     try:
-      tresult["expected"] = eval(texpect, globals=env[0], locals=env[1])
+      # module context uses same globals & locals
+      tresult["expected"] = eval(texpect, env)
       if "round" in test:
         tresult["expected"] = round(tresult["expected"], test["round"])
       if "expect_error" in test and test["expect_error"] != None:
