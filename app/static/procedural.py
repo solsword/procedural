@@ -1726,7 +1726,7 @@ def setup_base_puzzle(node, puzzle):
 
   w["code_blocks"] = code_blocks
   w["given_blocks"] = given_blocks
-  w["options"] = options
+  w["options"] = make_dict(options)
 
   # submission status div
   w["submission_status"] = browser.document.createElement("div")
