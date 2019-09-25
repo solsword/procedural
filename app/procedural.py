@@ -345,6 +345,15 @@ def is_admin(user_id):
   perms = get_current_permissions()
   return user_id in perms["admins"]
 
+def get_roster():
+  """
+  Retrieves the roster of eligible users from the permissions file. Mixes in
+  admins so that both admins and explicit roster entries are returned.
+  """
+  perms = get_current_permissions()
+  admins = perms.get("admins", [])
+  return admins + perms.get("roster", [])
+
 def get_permisisons(puzzle_id):
   """
   Retrieves a puzzle's permissions object from the permissions file.
@@ -405,19 +414,36 @@ def has_permission(puzzle_id, user_id):
   False. Admin accounts have permission to view all puzzles, and if the
   user_id is None, it always returns False.
   """
+  # Admins are always allowed:
   if is_admin(user_id):
     return True
-  elif user_id == None:
-    return False
 
   # Actually check puzzle permissions:
   pzperms = get_permisisons(puzzle_id)
   if pzperms == None:
     return False # no permissions for unknown puzzle
+
+  # Check for allow_any flag (allows even when not logged in)
+  if pzperms.get("allow_any"):
+    return True
+
+  # Check for missing user_id
+  if user_id == None:
+    return False
+
+  # Not a known user:
+  if user_id not in get_roster():
+    return False
+
+  # Check for explicit denial (overrides all but admin status)
+  deny = pzperms.get("deny", [])
+  if user_id in deny:
+    return False
+
+  # Check allow (might be true, false, or a list):
   allow = pzperms.get("allow", False)
   if allow == True:
-    deny = pzperms.get("deny", [])
-    return user_id not in deny
+    return True
   elif isinstance(allow, list):
     return user_id in allow
   else: # allow is false or some other unexpected value

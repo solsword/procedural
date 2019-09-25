@@ -8,3 +8,4 @@ CAS_AFTER_LOGIN = "route_root"
 # Server content configuration:
 CATEGORIES_FILE = "categories.json"
 PUZZLES_DIRECTORY = "puzzles"
+PERMISSIONS_FILE = "permissions.json"

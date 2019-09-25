@@ -791,6 +791,34 @@ def mkprint():
 
       raise IndexError(message)
 
+  def printed_by(function, n=None):
+    """
+    Calls the function with the given name with zero arguments, and then
+    captures its printed output. Returns the nth line of printed output from
+    that function, or the entire printed output as a single string if n is None
+    (the default).
+    """
+    nonlocal _output
+    olen = len(_output)
+    # TODO: something better than this DISGUSTING HACK?
+    env = sys._getframe(2).f_globals
+    eval(function.__name__ + "()", env)
+    my_output = _output[olen:] # any new additions
+    rlen = len(my_output)
+    if n == None:
+      return ''.join(my_output)
+    else:
+      if n >= rlen or n < -(rlen):
+        raise IndexError(
+          "Function {} produced only {} outputs, so we can't retrieve #{}"
+          .format(
+            function.__name__,
+            n
+          )
+        )
+      else:
+        return my_output[n]
+
   def reset_output():
     """
     Erases output recorded using fake print. Use for testing purposes.
@@ -798,7 +826,7 @@ def mkprint():
     nonlocal _output
     _output = []
 
-  return print, printed, reset_output
+  return print, printed, printed_by, reset_output
 
 def mkinput(inputs=None):
   """
@@ -842,15 +870,15 @@ def mkenv(inputs=None):
   Creates an execution environment where input() calls will receive the given
   inputs one by one (inputs must be a list of strings if provided).
   """
-  result = ({}, {})
+  result = {}
 
   # Create fake print & input functions:
-  print, printed, reset_output = mkprint()
+  print, printed, printed_by, reset_output = mkprint()
   input, reset_input = mkinput(inputs)
 
   # Make fake functions available as globals:
-  for f in (print, printed, reset_output, input, reset_input):
-    result[0][f.__name__] = f
+  for f in (print, printed, printed_by, reset_output, input, reset_input):
+    result[f.__name__] = f
 
   return result
 
@@ -863,7 +891,8 @@ def exec_code(code, env=None):
   if env == None:
     env = mkenv() # create a new environment
 
-  exec(code, globals=env[0], locals=env[1])
+  # module context has same globals & locals
+  exec(code, env)
 
   return env
 
@@ -1217,19 +1246,22 @@ def run_tests(widget, env):
 
     if "prep" in test:
       try:
-        exec(test["prep"], globals=env[0], locals=env[1])
+        # module context uses same globals & locals
+        exec(test["prep"], env)
       except Exception as e:
         tresult["prep_exception"] = trap_exception(e)
 
     try:
-      tresult["result"] = eval(texpr, globals=env[0], locals=env[1])
+      # module context uses same globals & locals
+      tresult["result"] = eval(texpr, env)
       if "round" in test:
         tresult["result"] = round(tresult["result"], test["round"])
     except Exception as e:
       tresult["exception"] = trap_exception(e)
 
     try:
-      tresult["expected"] = eval(texpect, globals=env[0], locals=env[1])
+      # module context uses same globals & locals
+      tresult["expected"] = eval(texpect, env)
       if "round" in test:
         tresult["expected"] = round(tresult["expected"], test["round"])
       if "expect_error" in test and test["expect_error"] != None:
