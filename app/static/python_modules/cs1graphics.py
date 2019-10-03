@@ -15,6 +15,8 @@ class Gobj:
     self.borderWidth = 1
     self.rotation = 0
     self.size = 1
+    self.flipped = [] # list of angles we've been flipped across
+    # TODO: reduce flips to a boolean + rotations
     self.depth = 50
 
     for (key, val) in info.items():
@@ -42,6 +44,9 @@ class Gobj:
 
   def scale(self, factor):
     self.size *= factor
+
+  def flip(self, angle):
+    self.flipped.append(angle)
 
   def moveTo(self, x, y):
     self.offset[0] = x - self.reference[0]

@@ -1022,12 +1022,20 @@ def after_update_dl(target):
     "href",
     "data:text/json;charset=utf-8," + browser.window.encodeURIComponent(result)
   )
-  dla.setAttribute("download", puzzle["id"] + "-solution.json")
+  dlname = puzzle["id"] + "-solution.json"
+  dla.setAttribute("download", dlname)
   dla.style.display = "none"
+  log("Downloading solution as: {}".format(dlname))
   browser.document.body.appendChild(dla)
   dla.click()
-  browser.document.body.removeChild(dla)
+  browser.window.setTimeout(remove_element_from_page, 0, dla)
   target.innerHTML = "Download Solution"
+
+def remove_element_from_page(x):
+  """
+  Remove an element from the page; used with setTimeout.
+  """
+  browser.document.body.removeChild(x)
 
 
 def attach_error_message(bucket, error_obj, expected=False):
