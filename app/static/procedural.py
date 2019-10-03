@@ -791,18 +791,17 @@ def mkprint():
 
       raise IndexError(message)
 
-  def printed_by(function, n=None):
+  def printed_by(some_code, n=None):
     """
-    Calls the function with the given name with zero arguments, and then
-    captures its printed output. Returns the nth line of printed output from
-    that function, or the entire printed output as a single string if n is None
-    (the default).
+    Executes the given code, and then captures its printed output. Returns the
+    nth line of printed output, or the entire printed output as a single string
+    if n is None (the default).
     """
     nonlocal _output
     olen = len(_output)
     # TODO: something better than this DISGUSTING HACK?
     env = sys._getframe(2).f_globals
-    eval(function.__name__ + "()", env)
+    exec(some_code, env)
     my_output = _output[olen:] # any new additions
     rlen = len(my_output)
     if n == None:
@@ -810,9 +809,9 @@ def mkprint():
     else:
       if n >= rlen or n < -(rlen):
         raise IndexError(
-          "Function {} produced only {} outputs, so we can't retrieve #{}"
+          "Code '{}' produced only {} outputs, so we can't retrieve #{}"
           .format(
-            function.__name__,
+            some_code,
             n
           )
         )
@@ -945,6 +944,7 @@ def eval_button_handler(ev):
   env = mkenv(inputs)
 
   if "preexec" in puzzle:
+    log("Pre-exec:", puzzle["preexec"]);
     try:
       env = exec_code(puzzle["preexec"], env)
     except Exception as e:
@@ -956,7 +956,7 @@ def eval_button_handler(ev):
 
   if exception == None:
     try:
-      env = exec_code(code, mkenv(inputs))
+      env = exec_code(code, env)
     except Exception as e:
       exception = trap_exception(e)
       log("Result was an exception:\n{}".format(format_error(exception)))
