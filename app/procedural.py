@@ -334,9 +334,20 @@ def all_solutions_to(puzzle_id):
         if os.path.isfile(ff) and "-solution:" in filename:
           fpid = filename[:filename.index("-solution:")]
           if fpid == puzzle_id:
-            result.append((dirname, ff))
+            result.append(ff)
 
   return result
+
+def solution_info(sol_filename):
+  """
+  Extracts the username, puzzle ID, and timestamp from a solution
+  filename.
+  """
+  username = sol_filename.split('/')[-2]
+  filepart = os.path.basename(sol_filename)
+  pzid = filepart[:filepart.index("-solution:")]
+  timestamp = ':'.join(filepart.split(':')[1:])[:-len(".json")]
+  return username, pzid, timestamp
 
 def is_admin(user_id):
   """
@@ -348,11 +359,47 @@ def is_admin(user_id):
 def get_roster():
   """
   Retrieves the roster of eligible users from the permissions file. Mixes in
-  admins so that both admins and explicit roster entries are returned.
+  admins so that both admins and explicit roster entries are returned. Result
+  is a lsit of username strings.
   """
   perms = get_current_permissions()
   admins = perms.get("admins", [])
   return admins + perms.get("roster", [])
+
+def get_student_list():
+  """
+  Works like get_roster but just returns a list of students; does not include
+  admins.
+  """
+  perms = get_current_permissions()
+  return perms.get("roster", [])
+
+
+def get_all_puzzles_in_category(cat):
+  """
+  Returns a flat list of puzzle IDs from a category.
+  """
+  result = []
+  if "items" in cat:
+    for item in cat["items"]:
+      result.extend(get_all_puzzles_in_category(item))
+  elif "load_id" in cat:
+    result.append(cat["load_id"])
+  elif "id" in cat:
+    result.append(cat["id"])
+  else:
+    print("Error: Cateory with unknown type:\n{}".format(cat))
+
+  return result
+
+def get_puzzles_list():
+  """
+  Returns a list of strings containing all of the valid puzzle IDs.
+  """
+  with open(app.config.get("CATEGORIES_FILE", "categories.json"), 'r') as fin:
+    cats = json.load(fin)
+
+  return get_all_puzzles_in_category(cats)
 
 def get_permisisons(puzzle_id):
   """
