@@ -15,6 +15,18 @@
   background-color: #ddeeff;
 }
 
+/* solution check failed */
+.procedural_widget.unsolved {
+  border-color: #998800;
+  background-color: #ffeedd;
+}
+
+/* this solution check failed but a prior one succeeded */
+.procedural_widget.solved.unsolved {
+  border-color: #552288;
+  background-color: #eeddff;
+}
+
 .procedural_widget pre {
   white-space: pre;
 }
