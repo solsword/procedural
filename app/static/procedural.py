@@ -732,6 +732,32 @@ def same_widget(a, b):
 # Evaluation Functions #
 #----------------------#
 
+def get_enclosing_frame():
+  """
+  Works around Brython's frame indexing to get the enclosing frame (based on
+  the frame of the calling code). Returns None if it can't find an enclosing
+  frame.
+  """
+  n = 0
+  target = None
+  second_to_last = None
+  last_frame = None
+  while True:
+    try:
+      # Exception needs to happen before any assignments
+      new_frame = sys._getframe(n)
+
+      target = second_to_last
+      second_to_last = last_frame
+      last_frame = new_frame
+
+      n += 1
+
+    except:
+      break
+
+  return target
+
 def mkprint():
   """
   Creates print, printed, and reset_output functions for use in testing.
@@ -800,7 +826,7 @@ def mkprint():
     nonlocal _output
     olen = len(_output)
     # TODO: something better than this DISGUSTING HACK?
-    env = sys._getframe(2).f_globals
+    env = get_enclosing_frame().f_globals
     exec(some_code, env)
     my_output = _output[olen:] # any new additions
     rlen = len(my_output)
@@ -956,6 +982,7 @@ def eval_button_handler(ev):
 
   if exception == None:
     try:
+      log("Actually running code")
       env = exec_code(code, env)
     except Exception as e:
       exception = trap_exception(e)
@@ -965,6 +992,7 @@ def eval_button_handler(ev):
   # Now run the pre-test code
   pte = None
   if exception == None and "pretest" in puzzle:
+    log("Pre-test:", puzzle["pretest"])
     try:
       env = exec_code(puzzle["pretest"], env)
     except Exception as e:
@@ -1328,11 +1356,13 @@ def report_test_results(widget, results, error_obj=None, pretest_error=None):
       )
     if error_obj != None:
       ind.innerText = "Error running code."
+      mark_unsolved(widget)
     elif pretest_error != None:
       ind.innerText = (
         "Error preparing tests. We could not check your solution, but it is "
       + "probably not correct."
       )
+      mark_unsolved(widget)
     else: # No errors: puzzle solved (or empty)
       src_blocks = list(
         widget["source_bucket"].querySelectorAll(".code_block")
@@ -1343,11 +1373,13 @@ def report_test_results(widget, results, error_obj=None, pretest_error=None):
           mark_solved(widget, solution)
         else:
           ind.innerText = "No errors so far; use all blocks to solve puzzle."
+          mark_unsolved(widget)
       else: # empty bucket -> default message
         ind.innerText = (
           "Click 'check' to run the code... (drag some code to the right side "
         + "first)"
         )
+        mark_unsolved(widget)
 
   else:
     # Widget has tests, so report success/failure
@@ -1357,17 +1389,22 @@ def report_test_results(widget, results, error_obj=None, pretest_error=None):
       ind.innerText = "? / {} tests passed (error running code)".format(
         len(results)
       )
+      mark_unsolved(widget)
     elif pretest_error != None:
       ind.innerText = (
         "? / {} tests passed (Error preparing tests. Your code itself does "
       + "not have an error, but we could not set up for the tests, so your "
       + "solution is probably not correct.)"
       ).format(len(results))
+      mark_unsolved(widget)
     else:
       ind.innerText = "{} / {} tests passed".format(len(passed), len(results))
       if len(passed) == len(results):
         mark_solved(widget, solution)
         ind.innerText += " (puzzle solved!)"
+      else:
+        mark_unsolved(widget)
+
       if "test_elements" in widget:
         # report pass/fail for individual tests
         for i, r in enumerate(results):
@@ -1473,6 +1510,7 @@ def mark_solved(widget, solution):
   widget["solved"] = True
   widget["last_solution"] = solution
   add_class(widget["node"], "solved")
+  remove_class(widget["node"], "unsolved")
   # TODO: report solution more directly?
 
   # If the widget has a solution URL, report the solution
@@ -1501,6 +1539,13 @@ def mark_solved(widget, solution):
       timeout=25,
       ontimeout=handler
     )
+
+def mark_unsolved(widget):
+  """
+  Marks a widget as unsolved visually, but does not change the "solved" status
+  if there was a prior solution, nor does it affect the last_solution property.
+  """
+  add_class(widget["node"], "unsolved")
 
 def reason_for(status):
   """
