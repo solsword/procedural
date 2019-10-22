@@ -9,6 +9,7 @@
     "ps03-diamonds": { "allow": true, "allow_any": true, "deny": [] },
     "ps04-rps": { "allow": true, "allow_any": true, "deny": [] },
     "ps04-maze": { "allow": true, "allow_any": true, "deny": [] },
-    "ps04-quiz": { "allow": true, "allow_any": true, "deny": [] }
+    "ps04-quiz": { "allow": true, "allow_any": true, "deny": [] },
+    "ps05-circles": { "allow": true, "allow_any": true, "deny": [] }
   }
 }

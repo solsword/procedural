@@ -33,6 +33,7 @@ DEFAULT_INSTRUCTIONS_NOTESTS = (
 DEFAULT_PUZZLE = { # default puzzle:
   "id": "default_puzzle",
   "name": "Default Puzzle",
+  #"preexec": "",
   "code": [
     "c = a*b",
     "b = a + 1",
@@ -41,7 +42,7 @@ DEFAULT_PUZZLE = { # default puzzle:
     "c = c + a",
     "a = 3",
   ],
-  "pretest": "",
+  #"pretest": "",
   "tests": [
     ['a', '8'], # note: both sides will be evaluated
     ['b', '9'],
