@@ -11,5 +11,7 @@
     "ps04-maze": { "allow": true, "allow_any": true, "deny": [] },
     "ps04-quiz": { "allow": true, "allow_any": true, "deny": [] },
     "ps05-circles": { "allow": true, "allow_any": true, "deny": [] }
+    "ps06-wordsearch": { "allow": true, "allow_any": true, "deny": [] }
+    "ps06-sumgame": { "allow": true, "allow_any": true, "deny": [] }
   }
 }
