@@ -7,5 +7,5 @@ secret: Makefile
 cert: Makefile
 	openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 365
 
-cert.pem: certs
-key.pem: certs
+cert.pem: cert
+key.pem: cert
