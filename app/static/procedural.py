@@ -854,12 +854,13 @@ def mkprint():
 
   return print, printed, printed_by, reset_output
 
-def mkinput(inputs=None):
+def mkinput(inputs=None, input_limit=None):
   """
   Creates input, and reset_input functions for use in testing. The created
   functions use a copy of the given input list, which should be a list of
   strings. Input calls once the given inputs are exhausted will return empty
-  strings.
+  strings. If input_limit is given, after that many inputs have been used,
+  the input function will raise an error instead of returning an empty string.
   """
   if inputs == None:
     _inputs = []
@@ -873,12 +874,18 @@ def mkinput(inputs=None):
     list of inputs, or returns an empty string if we're out of inputs. The
     prompt is ignored.
     """
-    nonlocal _inputs, _idx
+    nonlocal _inputs, _idx, input_limit
     if _idx < len(_inputs):
       result = _inputs[_idx]
       _idx += 1
       return result
+    elif input_limit != None and _idx >= input_limit:
+      raise IOError(
+        "input() was called too many times (only {} inputs available)."
+        .format(input_limit)
+      )
     else:
+      _idx += 1
       return ''
 
   def reset_input():
@@ -891,7 +898,7 @@ def mkinput(inputs=None):
 
   return (input, reset_input)
 
-def mkenv(inputs=None):
+def mkenv(inputs=None, input_limit=None):
   """
   Creates an execution environment where input() calls will receive the given
   inputs one by one (inputs must be a list of strings if provided).
@@ -900,7 +907,7 @@ def mkenv(inputs=None):
 
   # Create fake print & input functions:
   print, printed, printed_by, reset_output = mkprint()
-  input, reset_input = mkinput(inputs)
+  input, reset_input = mkinput(inputs, input_limit)
 
   # Make fake functions available as globals:
   for f in (print, printed, printed_by, reset_output, input, reset_input):
@@ -968,7 +975,7 @@ def eval_button_handler(ev):
     if isinstance(inputs, str):
       inputs = inputs.split('\n')
 
-  env = mkenv(inputs)
+  env = mkenv(inputs, puzzle.get("input_limit"))
 
   if "preexec" in puzzle:
     log("Pre-exec:", puzzle["preexec"]);
