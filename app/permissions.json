@@ -12,6 +12,9 @@
     "ps04-quiz": { "allow": true, "allow_any": true, "deny": [] },
     "ps05-circles": { "allow": true, "allow_any": true, "deny": [] },
     "ps06-wordsearch": { "allow": true, "allow_any": true, "deny": [] },
-    "ps06-sumgame": { "allow": true, "allow_any": true, "deny": [] }
+    "ps06-sumgame": { "allow": true, "allow_any": true, "deny": [] },
+    "ps07-helper": { "allow": true, "allow_any": true, "deny": [] },
+    "ps07-sorting": { "allow": true, "allow_any": true, "deny": [] },
+    "ps07-looping": { "allow": true, "allow_any": true, "deny": [] }
   }
 }

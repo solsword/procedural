@@ -1467,7 +1467,7 @@ def report_test_results(widget, results, error_obj=None, pretest_error=None):
                     tval.innerText = "<different error>"
                     attach_error_mesage_to_code(tval, r["exception"])
                 else:
-                  tval.innerText = r["result"]
+                  tval.innerText = repr(r["result"])
 
               if r["exp_exception"] != None:
                 texp.innerText = "<error trying to figure out expected error>"
@@ -1502,13 +1502,13 @@ def report_test_results(widget, results, error_obj=None, pretest_error=None):
                 tval.innerText = "<error>"
                 attach_error_mesage_to_code(tval, r["exception"])
               else:
-                tval.innerText = r["result"]
+                tval.innerText = repr(r["result"])
 
             if r["exp_exception"] != None:
               texp.innerText = "<error trying to figure out expected value>"
               attach_error_mesage_to_code(texp, r["exp_exception"])
             else:
-              texp.innerText = str(r["expected"])
+              texp.innerText = repr(r["expected"])
 
 def mark_solved(widget, solution):
   """
@@ -1807,10 +1807,17 @@ def setup_base_puzzle(node, puzzle):
   if isinstance(given_blocks, str):
     given_blocks = blocks_from_lines(given_blocks)
 
+  free_given = [False]*len(given_blocks)
+  for i, given in enumerate(given_blocks):
+    if given.startswith('::'):
+      free_given[i] = True
+      given_blocks[i] = given[2:]
+
   options = puzzle.get("options", {})
 
   w["code_blocks"] = code_blocks
   w["given_blocks"] = given_blocks
+  w["free_given"] = free_given
   w["options"] = make_dict(options)
 
   # submission status div
@@ -1863,8 +1870,13 @@ def setup_base_puzzle(node, puzzle):
   )
 
   # Add each given block to our soln div:
-  for block in given_blocks:
-    add_code_block_to_bucket(w["soln_bucket"], w["options"], block, given=True)
+  for i, block in enumerate(given_blocks):
+    add_code_block_to_bucket(
+      w["soln_bucket"],
+      w["options"],
+      block,
+      given=not free_given[i]
+    )
 
   # Create evaluate button in the instructions
   eb = browser.document.createElement("button")
