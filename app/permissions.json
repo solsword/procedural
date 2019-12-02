@@ -15,6 +15,9 @@
     "ps06-sumgame": { "allow": true, "allow_any": true, "deny": [] },
     "ps07-helper": { "allow": true, "allow_any": true, "deny": [] },
     "ps07-sorting": { "allow": true, "allow_any": true, "deny": [] },
-    "ps07-looping": { "allow": true, "allow_any": true, "deny": [] }
+    "ps07-looping": { "allow": true, "allow_any": true, "deny": [] },
+    "ps08-titanic": { "allow": true, "allow_any": true, "deny": [] },
+    "ps08-unjumble": { "allow": true, "allow_any": true, "deny": [] },
+    "ps09-hourglass": { "allow": true, "allow_any": true, "deny": [] }
   }
 }
