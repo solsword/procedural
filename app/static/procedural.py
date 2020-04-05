@@ -969,53 +969,60 @@ def eval_button_handler(ev):
   log("Running code:\n---\n{}\n---".format(code))
   exception = None
 
-  inputs = []
-  if "input" in puzzle:
-    inputs = puzzle["input"]
-    if isinstance(inputs, str):
-      inputs = inputs.split('\n')
+  try:
+    inputs = []
+    if "input" in puzzle:
+      inputs = puzzle["input"]
+      if isinstance(inputs, str):
+        inputs = inputs.split('\n')
 
-  env = mkenv(inputs, puzzle.get("input_limit"))
+    env = mkenv(inputs, puzzle.get("input_limit"))
 
-  if "preexec" in puzzle:
-    log("Pre-exec:", puzzle["preexec"]);
-    try:
-      env = exec_code(puzzle["preexec"], env)
-    except Exception as e:
-      pre_exception = trap_exception(e)
-      error(
-        "Pre-exec raised exception:\n{}".format(format_error(pre_exception))
-      )
-      # TODO: Make these errors visible?
+    if "preexec" in puzzle:
+      log("Pre-exec:", puzzle["preexec"]);
+      try:
+        env = exec_code(puzzle["preexec"], env)
+      except Exception as e:
+        pre_exception = trap_exception(e)
+        error(
+          "Pre-exec raised exception:\n{}".format(format_error(pre_exception))
+        )
+        # TODO: Make these errors visible?
 
-  if exception == None:
-    try:
-      log("Actually running code")
-      env = exec_code(code, env)
-    except Exception as e:
-      exception = trap_exception(e)
-      log("Result was an exception:\n{}".format(format_error(exception)))
-      attach_error_message(bucket, exception)
+    if exception == None:
+      try:
+        log("Actually running code")
+        env = exec_code(code, env)
+      except Exception as e:
+        exception = trap_exception(e)
+        log("Result was an exception:\n{}".format(format_error(exception)))
+        attach_error_message(bucket, exception)
 
-  # Now run the pre-test code
-  pte = None
-  if exception == None and "pretest" in puzzle:
-    log("Pre-test:", puzzle["pretest"])
-    try:
-      env = exec_code(puzzle["pretest"], env)
-    except Exception as e:
-      # An exception here is neither recoverable nor reportable. Be careful
-      # with your pre-test code.
-      pte = trap_exception(e)
-      error("Exception in pre-test code:\n" + format_error(pte))
+    # Now run the pre-test code
+    pte = None
+    if exception == None and "pretest" in puzzle:
+      log("Pre-test:", puzzle["pretest"])
+      try:
+        env = exec_code(puzzle["pretest"], env)
+      except Exception as e:
+        # An exception here is neither recoverable nor reportable. Be careful
+        # with your pre-test code.
+        pte = trap_exception(e)
+        error("Exception in pre-test code:\n" + format_error(pte))
 
-  # Now run tests and report results:
-  test_results = run_tests(widget, env)
-  report_test_results(widget, test_results, exception, pte)
+    # Now run tests and report results:
+    test_results = run_tests(widget, env)
+    report_test_results(widget, test_results, exception, pte)
 
-  # Finally re-enable the button
-  ev.target.innerHTML = "Check Solution"
-  ev.target.disabled = False
+  except Exception as e:
+    pte = trap_exception(e)
+    error("Something went horribly wrong during testing:\n" + format_error(pte))
+    attach_error_message(bucket, pte)
+
+  finally:
+    # Finally re-enable the button
+    ev.target.innerHTML = "Check Solution"
+    ev.target.disabled = False
 
 def dl_button_handler(ev):
   """
@@ -1287,6 +1294,7 @@ def run_tests(widget, env):
       except Exception as e:
         tresult["prep_exception"] = trap_exception(e)
 
+    # TODO: Try to catch infinite loops here?
     try:
       # module context uses same globals & locals
       tresult["result"] = eval(texpr, env)
@@ -1295,6 +1303,7 @@ def run_tests(widget, env):
     except Exception as e:
       tresult["exception"] = trap_exception(e)
 
+    # TODO: Try to catch infinite loops here?
     try:
       # module context uses same globals & locals
       tresult["expected"] = eval(texpect, env)
@@ -1327,10 +1336,18 @@ def run_tests(widget, env):
       if tresult["exception"] != None:
         tresult["passed"] = False
       else:
+        try:
+          result_repr = my_repr(tresult["result"])
+        except RecursionError:
+          result_repr = "<result cannot be represented>"
+        try:
+          exp_repr = my_repr(tresult["expected"])
+        except RecursionError:
+          exp_repr = "<expected value cannot be represented>"
         log(
           "Testing...\n{} == {} ? {}".format(
-            repr(tresult["result"]),
-            repr(tresult["expected"]),
+            result_repr,
+            exp_repr,
             tresult["result"] == tresult["expected"]
           )
         )
@@ -1340,6 +1357,47 @@ def run_tests(widget, env):
     results.append(tresult)
 
   return results
+
+def my_repr(thing, memo=None):
+  """
+  A function that works like repr, except that it actually works like
+  real Python repr in handling recursive structures using '...', at least
+  for lists, tuples, and dictionaries. Sadly, cannot play nicely with
+  custom __repr__...
+  """
+  # Make an empty memo if we have to:
+  if memo == None:
+    memo = set()
+
+  # Prevent reference loops from generating infinite text:
+  if id(thing) in memo:
+    return '...'
+
+  memo.add(id(thing))
+
+  if isinstance(thing, (list, tuple)):
+    brackets = repr(type(thing)())
+    return (
+      brackets[0]
+    + ', '.join(my_repr(item, memo) for item in thing)
+    + brackets[1]
+    )
+  elif isinstance(thing, dict):
+    return (
+      '{'
+    + ', '.join(
+        '{}:{}'.format(my_repr(key, memo), my_repr(item, memo))
+        for (key, item) in thing.items()
+      )
+    + '}'
+    )
+  else:
+    # Fall back on normal repr
+    try:
+      result = repr(thing)
+    except RecursionError:
+      result = '***'
+    return result
 
 def report_test_results(widget, results, error_obj=None, pretest_error=None):
   """
@@ -1467,7 +1525,10 @@ def report_test_results(widget, results, error_obj=None, pretest_error=None):
                     tval.innerText = "<different error>"
                     attach_error_mesage_to_code(tval, r["exception"])
                 else:
-                  tval.innerText = repr(r["result"])
+                  try:
+                    tval.innerText = my_repr(r["result"])
+                  except RecursionError:
+                    tval.innerText = "<result cannot be represented>"
 
               if r["exp_exception"] != None:
                 texp.innerText = "<error trying to figure out expected error>"
@@ -1502,13 +1563,19 @@ def report_test_results(widget, results, error_obj=None, pretest_error=None):
                 tval.innerText = "<error>"
                 attach_error_mesage_to_code(tval, r["exception"])
               else:
-                tval.innerText = repr(r["result"])
+                try:
+                  tval.innerText = my_repr(r["result"])
+                except RecursionError:
+                  tval.innerText = "<result cannot be represented>"
 
             if r["exp_exception"] != None:
               texp.innerText = "<error trying to figure out expected value>"
               attach_error_mesage_to_code(texp, r["exp_exception"])
             else:
-              texp.innerText = repr(r["expected"])
+              try:
+                texp.innerText = my_repr(r["expected"])
+              except RecursionError:
+                texp.innerText = "<expected value cannot be represented>"
 
 def mark_solved(widget, solution):
   """
